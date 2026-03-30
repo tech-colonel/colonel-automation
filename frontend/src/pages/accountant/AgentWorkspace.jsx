@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../components/layout/DashboardLayout';
-import { LayoutDashboard, Bot, Upload, FileText, Download, Trash2, Eye, Plus } from 'lucide-react';
+import { LayoutDashboard, Bot, Upload, FileText, Download, Trash2, Eye, Plus, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -20,6 +20,7 @@ const AgentWorkspace = () => {
   const [masterData, setMasterData] = useState({ sku_master: [], ledger_master: [] });
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Modal states
   const [showUploadSkuModal, setShowUploadSkuModal] = useState(false);
@@ -65,7 +66,25 @@ const AgentWorkspace = () => {
       console.log("currect agent", currentAgent);
       setAgent(currentAgent);
       setMasterData(masterRes.data);
-      setFiles(filesRes.data);
+
+      const monthOrder = {
+        'January': 1, 'February': 2, 'March': 3, 'April': 4,
+        'May': 5, 'June': 6, 'July': 7, 'August': 8,
+        'September': 9, 'October': 10, 'November': 11, 'December': 12
+      };
+
+      const sortedFiles = filesRes.data.sort((a, b) => {
+        const yearA = parseInt(a.year) || 0;
+        const yearB = parseInt(b.year) || 0;
+        if (yearA !== yearB) {
+          return yearB - yearA;
+        }
+        const monthA = monthOrder[a.month] || 0;
+        const monthB = monthOrder[b.month] || 0;
+        return monthB - monthA;
+      });
+
+      setFiles(sortedFiles);
     } catch (error) {
       console.error('Failed to load data:', error);
     } finally {
@@ -157,6 +176,8 @@ const AgentWorkspace = () => {
     data.append('file_type', formData.file_type);
     data.append('inventory_type', formData.inventory_type);
 
+    setIsGenerating(true);
+
     try {
       const agentType = await detectAgentType();
       await api.post(`/api/brands/${brandId}/agents/${agentId}/${agentType}/generate`, data, {
@@ -168,6 +189,8 @@ const AgentWorkspace = () => {
       setFormData({ ...formData, salesFile: null, rtoFile: null, packedFile: null, rtFile: null });
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to generate file');
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -634,11 +657,18 @@ const AgentWorkspace = () => {
             )}
 
             <div className="flex gap-3 pt-4">
-              <Button type="button" variant="secondary" onClick={() => setShowGenerateModal(false)} className="flex-1">
+              <Button type="button" variant="secondary" onClick={() => setShowGenerateModal(false)} className="flex-1" disabled={isGenerating}>
                 Cancel
               </Button>
-              <Button type="submit" className="flex-1" data-testid="generate-submit">
-                Generate File
+              <Button type="submit" className="flex-1" data-testid="generate-submit" disabled={isGenerating}>
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  'Generate File'
+                )}
               </Button>
             </div>
           </form>

@@ -8,7 +8,9 @@ async function amazonB2BProcessor(
   date,
   sourceSheetData,
   stateConfigData,
-  useInventory
+  useInventory,
+  formMonth,
+  formYear
 ) {
   try {
     if (!rawFileBuffer) {
@@ -138,15 +140,15 @@ async function amazonB2BProcessor(
     const b2bPossibleSkuCols = ['SKU', 'Sku', 'sku', 'Seller SKU', 'seller sku', 'Item SKU'];
     let b2bDetectedCol = null;
     for (const col of b2bPossibleSkuCols) {
-        if (filteredRows[0] && filteredRows[0].hasOwnProperty(col)) {
-            b2bDetectedCol = col;
-            break;
-        }
+      if (filteredRows[0] && filteredRows[0].hasOwnProperty(col)) {
+        b2bDetectedCol = col;
+        break;
+      }
     }
     if (b2bDetectedCol) {
-        filteredRows.forEach(row => {
-            row['Sku'] = row[b2bDetectedCol];
-        });
+      filteredRows.forEach(row => {
+        row['Sku'] = row[b2bDetectedCol];
+      });
     }
 
     // ================================
@@ -172,13 +174,23 @@ async function amazonB2BProcessor(
     }
 
     // ================================
-    // GET MONTH NUMBER FROM DATE
+    // GET MONTH NUMBER FROM DATE OR FORM
     // ================================
 
+    const monthMapping = {
+      "January": "01", "February": "02", "March": "03", "April": "04",
+      "May": "05", "June": "06", "July": "07", "August": "08",
+      "September": "09", "October": "10", "November": "11", "December": "12"
+    };
+
     const monthNumber = (() => {
+      if (formMonth) {
+        const mapped = monthMapping[formMonth] || formMonth;
+        return String(mapped).padStart(2, '0'); // 01,02,03...
+      }
       const d = new Date(date);
       const m = d.getMonth() + 1;
-      return String(m).padStart(2, '0'); // 01,02,03...
+      return String(m).padStart(2, '0');
     })();
 
     // ================================
@@ -219,10 +231,23 @@ async function amazonB2BProcessor(
 
             row['Ship To State Tally Ledger'] = stateMap[lookupKey].ledger;
 
-            const baseInvoice = stateMap[lookupKey].invoice;
+            const shipFrom = (row["Ship From State"] || "")
+              .toString()
+              .trim()
+              .toLowerCase();
 
-            if (baseInvoice) {
-              row['Final Invoice No.'] = `${baseInvoice}-${monthNumber}`;
+            const shipTo = (row["Ship To State"] || "")
+              .toString()
+              .trim()
+              .toLowerCase();
+
+            if (shipFrom && shipTo) {
+              const isIntraState = shipFrom === shipTo;
+              if (isIntraState) {
+                row['Final Invoice No.'] = `AMZ-INTRA-${monthNumber}`;
+              } else {
+                row['Final Invoice No.'] = `AMZ-INTER-${monthNumber}`;
+              }
             } else {
               row['Final Invoice No.'] = null;
             }
@@ -594,8 +619,16 @@ async function amazonB2BProcessor(
     // ==================================
     const tallySheet = workbook.addWorksheet('amazon-b2b-tally-ready');
     function getLastDateOfMonth(dateString) {
-      const dateObj = new Date(dateString);
-      const lastDay = new Date(dateObj.getFullYear(), dateObj.getMonth() + 1, 0);
+      let dYear, dMonth;
+      if (formMonth && formYear) {
+        dYear = parseInt(formYear);
+        dMonth = parseInt(monthMapping[formMonth] || formMonth);
+      } else {
+        const dateObj = new Date(dateString);
+        dYear = dateObj.getFullYear();
+        dMonth = dateObj.getMonth() + 1;
+      }
+      const lastDay = new Date(dYear, dMonth, 0);
       const dd = String(lastDay.getDate()).padStart(2, '0');
       const mm = String(lastDay.getMonth() + 1).padStart(2, '0');
       const yy = String(lastDay.getFullYear()).slice(-2);

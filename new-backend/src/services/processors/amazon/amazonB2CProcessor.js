@@ -138,15 +138,15 @@ async function amazonB2CProcessor(
     const b2cPossibleSkuCols = ['SKU', 'Sku', 'sku', 'Seller SKU', 'seller sku', 'Item SKU'];
     let b2cDetectedCol = null;
     for (const col of b2cPossibleSkuCols) {
-        if (filteredRows[0] && filteredRows[0].hasOwnProperty(col)) {
-            b2cDetectedCol = col;
-            break;
-        }
+      if (filteredRows[0] && filteredRows[0].hasOwnProperty(col)) {
+        b2cDetectedCol = col;
+        break;
+      }
     }
     if (b2cDetectedCol) {
-        filteredRows.forEach(row => {
-            row['Sku'] = row[b2cDetectedCol];
-        });
+      filteredRows.forEach(row => {
+        row['Sku'] = row[b2cDetectedCol];
+      });
     }
 
     // ================================
