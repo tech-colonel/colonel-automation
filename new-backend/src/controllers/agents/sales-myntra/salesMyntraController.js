@@ -7,6 +7,8 @@ const { myntraProcessor } = require('../../../services/processors/myntra/myntraP
 const path = require('path');
 const fs = require('fs-extra');
 const { v4: uuidv4 } = require('uuid');
+const { getMonthNumber } = require('../../../utils/dateUtils');
+const XLSX = require('xlsx-js-style');
 
 const OUTPUT_DIR = path.join(__dirname, '../../../../outputs');
 
@@ -16,17 +18,6 @@ const OUTPUT_DIR = path.join(__dirname, '../../../../outputs');
 async function ensureDir() {
     await fs.ensureDir(OUTPUT_DIR);
 }
-
-/**
- * Convert month name to number
- */
-const monthToNumber = (monthName) => {
-    const months = {
-        'January': 1, 'February': 2, 'March': 3, 'April': 4, 'May': 5, 'June': 6,
-        'July': 7, 'August': 8, 'September': 9, 'October': 10, 'November': 11, 'December': 12
-    };
-    return months[monthName] || parseInt(monthName) || 0;
-};
 
 /**
  * Upload SKU Master
@@ -80,11 +71,11 @@ const getMasterData = async (req, res, next) => {
 /**
  * Map Processor Row to Myntra Database Schema
  */
-const mapRowToMyntraSchema = (row, month, year, filename) => ({
+const mapRowToMyntraSchema = (row, monthInt, year, filename, dateObj) => ({
     year: parseInt(year),
     filename: filename,
-    month: monthToNumber(month),
-    date: row.date_column ? new Date(row.date_column) : null,
+    month: monthInt,
+    date: dateObj,
     
     seller_gstin: row.seller_gstin,
     invoice_number: row.final_invoice_no,
@@ -174,8 +165,11 @@ const generate = async (req, res, next) => {
         const filename = `myntra_${brand.name}_${month}_${year}_${id}.xlsx`;
         const filepath = path.join(OUTPUT_DIR, filename);
 
+        const monthInt = getMonthNumber(month);
+        const dateObj = new Date(year, monthInt - 1, 1);
+
         const dbRows = processedData.workingFileData.map(row => 
-            mapRowToMyntraSchema(row, month, year, filename)
+            mapRowToMyntraSchema(row, monthInt, year, filename, dateObj)
         );
 
         await Model.sync();

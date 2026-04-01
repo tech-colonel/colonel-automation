@@ -8,6 +8,7 @@ const path = require('path');
 const fs = require('fs-extra');
 const { v4: uuidv4 } = require('uuid');
 const XLSX = require('xlsx-js-style');
+const { getMonthNumber } = require('../../../utils/dateUtils');
 
 const OUTPUT_DIR = path.join(__dirname, '../../../../outputs');
 
@@ -26,17 +27,6 @@ function safeNum(value) {
     const num = Number(value);
     return isNaN(num) ? 0 : num;
 }
-
-/**
- * Convert month name to number
- */
-const monthToNumber = (monthName) => {
-    const months = {
-        'January': 1, 'February': 2, 'March': 3, 'April': 4, 'May': 5, 'June': 6,
-        'July': 7, 'August': 8, 'September': 9, 'October': 10, 'November': 11, 'December': 12
-    };
-    return months[monthName] || parseInt(monthName) || 0;
-};
 
 /**
  * Upload SKU Master
@@ -105,10 +95,11 @@ function safeDate(value) {
  * Map Processor Row to FirstCry Database Schema
  * Based on firstcryProcessor return data and seed-sales-firstcry.js
  */
-const mapRowToFirstcrySchema = (row, month, year, filename) => ({
+const mapRowToFirstcrySchema = (row, monthInt, year, filename, dateObj) => ({
     year: parseInt(year),
-    month: monthToNumber(month),
+    month: monthInt,
     filename: filename,
+    date: dateObj,
     
     // Core order info
     fc_ref_no: String(row['FC Ref No.'] || row['FC Ref No'] || row['FC Reference No'] || ''),
@@ -145,16 +136,15 @@ const mapRowToFirstcrySchema = (row, month, year, filename) => ({
     payment_advice_no: String(row['Payment Advice No.'] || ''),
     debit_note_no: String(row['Debit note no.'] || row['Debit Note No.'] || ''),
 
-    // SR (Sales Return) - Populated if it's a negative row and identifies as SR
-    // Assuming for now these are just mapped to main fields if negated
-    sr_qty: 0,
-    sr_total_amount: 0,
-    sr_gross_amount: 0,
+    // SR (Sales Return)
+    sr_qty: safeNum(row['SR Qty'] || 0),
+    sr_total_amount: safeNum(row['SR Total Amount'] || 0),
+    sr_gross_amount: safeNum(row['SR Gross Amount'] || 0),
 
     // RTO (Return to Origin)
-    rto_qty: 0,
-    rto_total_amount: 0,
-    rto_gross_amount: 0
+    rto_qty: safeNum(row['RTO Qty'] || 0),
+    rto_total_amount: safeNum(row['RTO Total Amount'] || 0),
+    rto_gross_amount: safeNum(row['RTO Gross Amount'] || 0)
 });
 
 /**
@@ -199,9 +189,12 @@ const generate = async (req, res, next) => {
         const filename = `firstcry_${brand.name}_${month}_${year}_${id}.xlsx`;
         const filepath = path.join(OUTPUT_DIR, filename);
 
+        const monthInt = getMonthNumber(month);
+        const dateObj = new Date(year, monthInt - 1, 1);
+
         // Map processed rows for database storage
         const dbRows = processedData.processedData.map(row => 
-            mapRowToFirstcrySchema(row, month, year, filename)
+            mapRowToFirstcrySchema(row, monthInt, year, filename, dateObj)
         );
 
         await Model.sync();
