@@ -64,7 +64,17 @@ const seedShopifyOrderCycle = async () => {
 
                     // 🔹 BharatX
                     { name: 'bharatx_settlement_timestamp', type: 'DATE' },
-                    { name: 'bharatx_ledger_amount', type: 'DECIMAL' }
+                    { name: 'bharatx_ledger_amount', type: 'DECIMAL' },
+
+                    // 🔹 Razorpay
+                    { name: 'razorpay_settlement_date', type: 'DATE' },
+                    { name: 'razorpay_settlement_amount', type: 'DECIMAL' },
+
+                    // 🔹 Reconciliation Totals
+                    { name: 'delivery_status', type: 'STRING' },
+                    { name: 'total_settlement_received', type: 'DECIMAL' },
+                    { name: 'balance_amount_receivable', type: 'DECIMAL' },
+                    { name: 'reconciliation_status', type: 'STRING' }
                 ]
             });
 

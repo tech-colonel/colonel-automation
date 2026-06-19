@@ -68,6 +68,7 @@ const FIELD_SECTIONS = [
     fields: [
       { key: 'product_name', label: 'Product / Service', type: 'text' },
       { key: 'hsn_code', label: 'HSN Code', type: 'text' },
+      { key: 'batch_no', label: 'Batch No', type: 'text' },
       { key: 'quantity', label: 'Quantity', type: 'number' },
       { key: 'unit', label: 'Unit', type: 'text' },
       { key: 'rate', label: 'Rate', type: 'number', display: money },

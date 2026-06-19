@@ -192,6 +192,7 @@ const feedInvoicesFromN8n = async (req, res, next) => {
             category: row.category || null,
             product_name: row.product_name || null,
             hsn_code: row.hsn_code || null,
+            batch_no: row.batch_no || null,
             quantity: parseInt(row.quantity) || 0,
             unit: row.unit || null,
             rate: parseFloat(row.rate) || 0,

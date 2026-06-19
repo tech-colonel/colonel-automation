@@ -123,6 +123,19 @@ router.post('/brands/:brandId/agents/:agentId/zepto/generate/preview', authentic
 router.post('/brands/:brandId/agents/:agentId/zepto/generate/commit', authenticateToken, salesZeptoController.generateCommit);
 router.post('/brands/:brandId/agents/:agentId/zepto/generate/discard', authenticateToken, salesZeptoController.generateDiscard);
 
+const salesNykaaController = require('../controllers/agents/sales-nykaa/salesNykaaController');
+
+// ─── Nykaa Routes ─────────────────────────────────────────────────────────────
+router.get('/brands/:brandId/agents/:agentId/nykaa/master', authenticateToken, salesNykaaController.getMasterData);
+
+// Two-phase generation: upload cycle1File + cycle2File → preview → commit/discard
+router.post('/brands/:brandId/agents/:agentId/nykaa/generate/preview', authenticateToken, upload.fields([
+    { name: 'cycle1File', maxCount: 1 },   // May_01_15 (1–15 cycle)
+    { name: 'cycle2File', maxCount: 1 },   // May_16_30 (16–30 cycle)
+]), salesNykaaController.generatePreview);
+router.post('/brands/:brandId/agents/:agentId/nykaa/generate/commit',  authenticateToken, salesNykaaController.generateCommit);
+router.post('/brands/:brandId/agents/:agentId/nykaa/generate/discard', authenticateToken, salesNykaaController.generateDiscard);
+
 const totalSalesController = require('../controllers/agents/total-sales/totalSalesController');
 
 // ─── Total Sales Routes ────────────────────────────────────────────────────────
@@ -135,5 +148,28 @@ router.post('/brands/:brandId/agents/:agentId/total-sales-analyzer/generate/prev
 router.post('/brands/:brandId/agents/:agentId/total-sales-analyzer/generate/commit', authenticateToken, totalSalesController.generateCommit);
 router.post('/brands/:brandId/agents/:agentId/total-sales-analyzer/generate/discard', authenticateToken, totalSalesController.generateDiscard);
 router.post('/brands/:brandId/agents/:agentId/total-sales-analyzer/dashboard', authenticateToken, totalSalesController.getDashboardData);
+
+const salesMirrowController = require('../controllers/agents/sales-mirrow/salesMirrowController');
+const salesCreadController = require('../controllers/agents/sales-cread/salesCreadController');
+
+// ─── Mirrow Routes ─────────────────────────────────────────────────────────────
+router.get('/brands/:brandId/agents/:agentId/mirrow/master', authenticateToken, salesMirrowController.getMasterData);
+router.post('/brands/:brandId/agents/:agentId/mirrow/master/sku', authenticateToken, upload.single('file'), salesMirrowController.uploadSkuMaster);
+router.post('/brands/:brandId/agents/:agentId/mirrow/master/ledger', authenticateToken, upload.single('file'), salesMirrowController.uploadLedgerMaster);
+router.post('/brands/:brandId/agents/:agentId/mirrow/generate', authenticateToken, upload.single('file'), salesMirrowController.generate);
+
+router.post('/brands/:brandId/agents/:agentId/mirrow/generate/preview', authenticateToken, upload.single('file'), salesMirrowController.generatePreview);
+router.post('/brands/:brandId/agents/:agentId/mirrow/generate/commit', authenticateToken, salesMirrowController.generateCommit);
+router.post('/brands/:brandId/agents/:agentId/mirrow/generate/discard', authenticateToken, salesMirrowController.generateDiscard);
+
+// ─── cread Routes ─────────────────────────────────────────────────────────────
+router.get('/brands/:brandId/agents/:agentId/cread/master', authenticateToken, salesCreadController.getMasterData);
+router.post('/brands/:brandId/agents/:agentId/cread/master/sku', authenticateToken, upload.single('file'), salesCreadController.uploadSkuMaster);
+router.post('/brands/:brandId/agents/:agentId/cread/master/ledger', authenticateToken, upload.single('file'), salesCreadController.uploadLedgerMaster);
+router.post('/brands/:brandId/agents/:agentId/cread/generate', authenticateToken, upload.single('file'), salesCreadController.generate);
+
+router.post('/brands/:brandId/agents/:agentId/cread/generate/preview', authenticateToken, upload.single('file'), salesCreadController.generatePreview);
+router.post('/brands/:brandId/agents/:agentId/cread/generate/commit', authenticateToken, salesCreadController.generateCommit);
+router.post('/brands/:brandId/agents/:agentId/cread/generate/discard', authenticateToken, salesCreadController.generateDiscard);
 
 module.exports = router;

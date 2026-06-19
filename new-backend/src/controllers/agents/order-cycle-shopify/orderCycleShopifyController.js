@@ -64,51 +64,51 @@ function extractPartnerFiles(reqFiles, gatewayNames, logisticsNames) {
  * Map a processed summary row to the DB schema columns defined in the seed.
  */
 function mapRowToSchema(row, month, year, filename) {
-    const safeNum = (v) => {
-        if (v === null || v === undefined || v === '') return 0;
-        const n = Number(v);
-        return isNaN(n) ? 0 : n;
-    };
-    const safeStr = (v) => (v === null || v === undefined ? '' : String(v));
-    const safeDate = (v) => {
-        if (!v) return null;
-        const d = new Date(v);
-        return isNaN(d.getTime()) ? null : d;
-    };
+    const sN = (v) => { if (v === null || v === undefined || v === '') return 0; const n = Number(v); return isNaN(n) ? 0 : n; };
+    const sS = (v) => (v === null || v === undefined ? '' : String(v));
+    const sD = (v) => { if (!v) return null; const d = new Date(v); return isNaN(d.getTime()) ? null : d; };
 
     return {
         year: parseInt(year) || new Date().getFullYear(),
         month: parseInt(month) || 0,
         filename,
-        date: safeDate(row.date || row['Date']),
-        sale_order_number: safeStr(row.sale_order_number || row['Order ID'] || row['Name']),
-        platform: safeStr(row.platform || 'Shopify'),
-        invoice_number: safeStr(row.invoice_number || row['Invoice Number']),
-        awb_number: safeStr(row.awb_number || row['AWB'] || row['Tracking Number']),
-        shipping_partner: safeStr(row.shipping_partner),
-        dispatch_or_cancellation_date: safeDate(row.dispatch_or_cancellation_date),
-        return_date: safeDate(row.return_date),
-        total_amount: safeNum(row.total_amount || row['Total']),
-        return_amount: safeNum(row.return_amount),
-        net_amount: safeNum(row.net_amount || row['Net Sales']),
-        srn: safeStr(row.srn || row['SRN']),
+        date: sD(row.dispatch_date),
+        sale_order_number: sS(row.sale_order_number),
+        platform: sS(row.shopify || 'Shopify'),
+        invoice_number: sS(row.invoice_number),
+        awb_number: sS(row.awb_number),
+        shipping_partner: sS(row.shipping_partner),
+        dispatch_or_cancellation_date: sD(row.dispatch_date),
+        return_date: sD(row.return_date),
+        total_amount: sN(row.sales_amount),
+        return_amount: sN(row.return_amount),
+        net_amount: sN(row.net_amount),
+        srn: sS(row.srn),
+        delivery_status: sS(row.delivery_status),
         // Ekart
-        ekart_remittance_date: safeDate(row.ekart_remittance_date),
-        ekart_actual_remittance_date: safeDate(row.ekart_actual_remittance_date),
-        ekart_cod_amount: safeNum(row.ekart_cod_amount),
+        ekart_remittance_date: sD(row.ekart_remittance_date),
+        ekart_actual_remittance_date: sD(row.ekart_actual_remittance_date),
+        ekart_cod_amount: sN(row.ekart_cod_amount),
         // Delhivery
-        delhivery_delivery_date: safeDate(row.delhivery_delivery_date),
-        delhivery_cod_amount: safeNum(row.delhivery_cod_amount),
+        delhivery_delivery_date: sD(row.delhivery_delivery_date),
+        delhivery_cod_amount: sN(row.delhivery_cod_amount),
         // Xpressbees
-        xpressbees_delivery_date: safeDate(row.xpressbees_delivery_date),
-        xpressbees_transaction_date: safeDate(row.xpressbees_transaction_date),
-        xpressbees_net_payment: safeNum(row.xpressbees_net_payment),
+        xpressbees_delivery_date: sD(row.xpressbees_delivery_date),
+        xpressbees_transaction_date: sD(row.xpressbees_transaction_date),
+        xpressbees_net_payment: sN(row.xpressbees_net_payment),
         // Snapmint
-        snapmint_settlement_date: safeDate(row.snapmint_settlement_date),
-        snapmint_settlement_value: safeNum(row.snapmint_settlement_value),
+        snapmint_settlement_date: sD(row.snapmint_settlement_date),
+        snapmint_settlement_value: sN(row.snapmint_settlement_amount),
         // BharatX
-        bharatx_settlement_timestamp: safeDate(row.bharatx_settlement_timestamp),
-        bharatx_ledger_amount: safeNum(row.bharatx_ledger_amount),
+        bharatx_settlement_timestamp: sD(row.bharatx_settlement_date),
+        bharatx_ledger_amount: sN(row.bharatx_settlement_amount),
+        // Razorpay
+        razorpay_settlement_date: sD(row.razorpay_settlement_date),
+        razorpay_settlement_amount: sN(row.razorpay_settlement_amount),
+        // Totals
+        total_settlement_received: sN(row.total_settlement_received),
+        balance_amount_receivable: sN(row.balance_amount_receivable),
+        reconciliation_status: sS(row.reconciliation_status),
     };
 }
 
@@ -131,16 +131,18 @@ const generatePreview = async (req, res, next) => {
         const month = req.body.month || '';
         const year = req.body.year || new Date().getFullYear().toString();
 
-        // Validate Unicommerce + Sales Order files
-        const unicommerceArr = req.files?.unicommerceFile;
-        const salesOrderArr = req.files?.salesOrderReportFile;
+        // Validate required files
+        const unicommerceArr = req.files?.unicommerceFile;       // Export-Tally GST Report
+        const returnGSTArr = req.files?.returnGSTFile;           // Return GST Report
+        const salesOrderArr = req.files?.salesOrderReportFile;   // Sales Order Combined Report
         if (!unicommerceArr || !unicommerceArr[0]) {
-            return res.status(400).json({ error: 'Unicommerce file is required (field: unicommerceFile)' });
+            return res.status(400).json({ error: 'Export-Tally GST file is required (field: unicommerceFile)' });
         }
         if (!salesOrderArr || !salesOrderArr[0]) {
             return res.status(400).json({ error: 'Sales Order Report file is required (field: salesOrderReportFile)' });
         }
         const unicommerceBuffer = unicommerceArr[0].buffer;
+        const returnGSTBuffer = returnGSTArr?.[0]?.buffer || null;
         const salesOrderBuffer = salesOrderArr[0].buffer;
 
         // Validate Brand + Agent
@@ -161,8 +163,11 @@ const generatePreview = async (req, res, next) => {
         }
 
         // Parse all files to JSON
-        const unicommerceJson = await parseExcelBuffer(unicommerceBuffer, 'Unicommerce File');
-        const salesOrderJson = await parseExcelBuffer(salesOrderBuffer, 'Sales Order Report');
+        const unicommerceJson = await parseExcelBuffer(unicommerceBuffer, 'Export-Tally GST Report');
+        const returnGSTJson = returnGSTBuffer
+            ? await parseExcelBuffer(returnGSTBuffer, 'Return GST Report')
+            : [];
+        const salesOrderJson = await parseExcelBuffer(salesOrderBuffer, 'Sales Order Combined Report');
         const gatewayDataJson = {};
         for (const gw of paymentGatewayFiles) {
             gatewayDataJson[gw.name] = await parseExcelBuffer(gw.buffer, `Payment Gateway: ${gw.name}`);
@@ -175,6 +180,7 @@ const generatePreview = async (req, res, next) => {
         // Run processor
         const result = await orderCycleShopifyProcessor(
             unicommerceJson,
+            returnGSTJson,
             salesOrderJson,
             gatewayDataJson,
             logisticsDataJson,
@@ -213,7 +219,8 @@ const generatePreview = async (req, res, next) => {
             rowCount: result.rowCount,
             parseStats: result.parseStats,
             summary: {
-                unicommerceRows: result.parseStats.unicommerce,
+                gstReportRows: result.parseStats.gstReport,
+                returnGSTRows: result.parseStats.returnGST,
                 salesOrderRows: result.parseStats.salesOrder,
                 gateways: result.parseStats.gateways,
                 logistics: result.parseStats.logistics,
@@ -294,13 +301,14 @@ const getGeneratedFiles = async (req, res, next) => {
         await Model.sync();
 
         // Get distinct filenames with metadata
+        // MIN(id::text) because id is UUID — PostgreSQL has no MIN() for UUID natively
         const { Sequelize } = require('sequelize');
         const rows = await Model.findAll({
             attributes: [
                 'filename', 'month', 'year',
                 [Sequelize.fn('COUNT', Sequelize.col('filename')), 'row_count'],
                 [Sequelize.fn('MIN', Sequelize.col('created_at')), 'created_at'],
-                [Sequelize.fn('MIN', Sequelize.col('id')), 'id'],
+                [Sequelize.literal('MIN(id::text)'), 'id'],
             ],
             group: ['filename', 'month', 'year'],
             order: [['year', 'DESC'], ['month', 'DESC']],

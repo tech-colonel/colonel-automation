@@ -18,6 +18,7 @@ import InvoiceAgentWorkspace from './InvoiceAgentWorkspace';
 import OrderCycleShopifyWorkspace from './OrderCycleShopifyWorkspace';
 import SettlementAmazonWorkspace from './SettlementAmazonWorkspace';
 import TotalSalesAnalyzerModal from './TotalSalesAnalyzerModal';
+import NykaaWorkspace from './NykaaWorkspace';
 
 const AgentWorkspace = () => {
   const { brandId, agentId } = useParams();
@@ -163,6 +164,8 @@ const AgentWorkspace = () => {
       if (currentAgent?.name?.toLowerCase().includes('jiomart')) return 'jiomart';
       if (currentAgent?.name?.toLowerCase().includes('shopify')) return 'shopify';
       if (currentAgent?.name?.toLowerCase().includes('total-sales')) return 'total-sales-analyzer';
+      if (currentAgent?.name?.toLowerCase().includes('mirrow')) return 'mirrow';
+      if (currentAgent?.name?.toLowerCase().includes('cread')) return 'cread';
       return 'amazon';
     } catch (error) {
       return 'amazon';
@@ -528,6 +531,9 @@ const AgentWorkspace = () => {
     agent?.name?.toLowerCase().includes('order cycle');
   const isSettlement = agent?.name?.toLowerCase().includes('settlement');
   const isTotalSalesAnalyzer = agent?.name?.toLowerCase().includes('total-sales');
+  const isNykaa = agent?.name?.toLowerCase().includes('nykaa');
+  const isMirrow = agent?.name?.toLowerCase().includes('mirrow');
+  const isCread = agent?.name?.toLowerCase().includes('cread');
 
   return (
     <DashboardLayout sidebarItems={sidebarItems}>
@@ -577,6 +583,25 @@ const AgentWorkspace = () => {
             </div>
           </div>
           <OrderCycleShopifyWorkspace agent={agent} />
+        </div>
+      ) : isNykaa ? (
+        <div className="p-6" data-testid="nykaa-workspace">
+          <div className="mb-8 flex justify-between items-start">
+            <div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate(`/brands/${brandId}/dashboard`)}
+                className="mb-4"
+                data-testid="back-button"
+              >
+                ← Back to Dashboard
+              </Button>
+              <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{agent?.name}</h1>
+              <p className="text-slate-600 mt-1">{agent?.description}</p>
+            </div>
+          </div>
+          <NykaaWorkspace agent={agent} />
         </div>
       ) : isSettlement ? (
         <div className="p-6" data-testid="settlement-amazon-workspace">
@@ -1365,6 +1390,12 @@ const AgentWorkspace = () => {
                     pfTitle = 'GSTR B2C';
                     pf2Title = 'GSTR HSN';
                   } else if (isZepto) {
+                    wfTitle = 'Working';
+                    pfTitle = 'Pivot';
+                  } else if (isMirrow) {
+                    wfTitle = 'Working';
+                    pfTitle = 'Pivot';
+                  } else if (isCread) {
                     wfTitle = 'Working';
                     pfTitle = 'Pivot';
                   }

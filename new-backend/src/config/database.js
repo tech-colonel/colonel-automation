@@ -17,11 +17,15 @@ const masterSequelize = new Sequelize(
     port: process.env.DB_PORT,
     dialect: 'postgres',
     logging: false,
+    dialectOptions: {
+      keepAlive: true,        // prevent OS/firewall silently dropping idle TCP connections
+    },
     pool: {
       max: 5,
       min: 0,
       acquire: 30000,
-      idle: 10000
+      idle: 30000,            // keep connections alive longer before evicting (was 10s)
+      evict: 60000,           // run eviction sweep every 60s to remove truly dead connections
     }
   }
 );
@@ -48,11 +52,15 @@ const getBrandConnection = (dbName) => {
       port: process.env.DB_PORT,
       dialect: 'postgres',
       logging: false,
+      dialectOptions: {
+        keepAlive: true,
+      },
       pool: {
         max: 5,
         min: 0,
         acquire: 30000,
-        idle: 10000
+        idle: 30000,
+        evict: 60000,
       }
     }
   );

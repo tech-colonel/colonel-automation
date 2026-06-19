@@ -37,6 +37,7 @@ const seedInvoiceAgent = async () => {
             // product details
             { name: 'product_name', type: 'STRING' },
             { name: 'hsn_code', type: 'STRING' },
+            { name: 'batch_no', type: 'STRING' },
 
             // quantity & pricing
             { name: 'quantity', type: 'DECIMAL' },
