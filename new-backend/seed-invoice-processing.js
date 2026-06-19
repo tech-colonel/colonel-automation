@@ -19,6 +19,7 @@ const seedInvoiceAgent = async () => {
 
             // company info
             { name: 'company', type: 'STRING' },
+            { name: 'vendor_name_tally', type: 'STRING' },
 
             // invoice details
             { name: 'invoice_number', type: 'STRING' },
@@ -29,15 +30,19 @@ const seedInvoiceAgent = async () => {
             { name: 'seller_gstin', type: 'STRING' },
             { name: 'buyer_gstin', type: 'STRING' },
 
-            // classification
+            // voucher / classification
+            { name: 'voucher_type', type: 'STRING' },
             { name: 'category', type: 'STRING' },
+
+            // product details
             { name: 'product_name', type: 'STRING' },
             { name: 'hsn_code', type: 'STRING' },
 
             // quantity & pricing
-            { name: 'quantity', type: 'INTEGER' },
+            { name: 'quantity', type: 'DECIMAL' },
             { name: 'unit', type: 'STRING' },
             { name: 'rate', type: 'DECIMAL' },
+            { name: 'taxable_value', type: 'DECIMAL' },
 
             // GST rates
             { name: 'cgst_rate', type: 'DECIMAL' },
@@ -50,13 +55,12 @@ const seedInvoiceAgent = async () => {
             { name: 'igst_amount', type: 'DECIMAL' },
 
             // totals
-            { name: 'gst_amount', type: 'DECIMAL' },
-            { name: 'taxable_value', type: 'DECIMAL' },
+            { name: 'GST_AMOUNT', type: 'DECIMAL' },
 
             // file reference
             { name: 'invoice_link', type: 'STRING' },
 
-            // status tracking (important for workflow)
+            // status tracking
             { name: 'status', type: 'STRING', defaultValue: 'Pending' }
         ];
 
