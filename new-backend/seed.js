@@ -107,14 +107,14 @@ const seedDatabase = async () => {
             console.log('✓ Settlement-Amazon agent already exists');
         }
 
-        const demoBrandExists = await Brand.findOne({ where: { db_name: 'tenant_demo' } });
+        const demoBrandExists = await Brand.findOne({ where: { db_name: 'colonel-automation' } });
         let demoBrand;
         if (!demoBrandExists) {
             demoBrand = await Brand.create({
-                name: 'Demo Brand',
+                name: 'colonel-automation',
                 description: 'A demo brand for testing purposes',
                 image_url: 'https://via.placeholder.com/150',
-                db_name: 'tenant_demo'
+                db_name: 'colonel-automation'
             });
             console.log('✓ Demo Brand created');
         } else {
@@ -145,7 +145,7 @@ const seedDatabase = async () => {
         }
 
         const agentsToLink = [salesAmazonAgent, salesFlipkartAgent, totalSalesAnalyzerAgent, settlementAmazonAgent];
-        
+
         for (const agent of agentsToLink) {
             if (agent) {
                 const brandAgentExists = await BrandAgent.findOne({ where: { brand_id: demoBrand.id, agent_id: agent.id } });

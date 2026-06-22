@@ -1,5 +1,5 @@
 const { Agent, Brand, BrandAgent } = require('../models/master');
-const { getBrandConnection, masterSequelize } = require('../config/database');
+const { getBrandConnection, masterSequelize, createBrandDatabase } = require('../config/database');
 const { getBrandAgentModel, getDynamicModel } = require('../models/brand');
 
 /**
@@ -62,6 +62,7 @@ const assignAgentToBrand = async (req, res, next) => {
     await BrandAgent.findOrCreate({ where: { brand_id, agent_id } });
 
     // 2. Initialize tables in Brand DB
+    await createBrandDatabase(brand.db_name);
     const brandDb = getBrandConnection(brand.db_name);
     
     // Core brand_agents table for this brand
