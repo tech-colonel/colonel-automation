@@ -18,8 +18,8 @@ const parseDate = (dString) => {
 // ─── POST /api/brands/:brandId/agents/:agentId/invoice/process ───────────────
 const processInvoice = async (req, res, next) => {
   try {
-    const brandId = req.body.brandId || req.params.brandId;
-    const agentId = req.body.agentId || req.params.agentId;
+    const brandId = req.params.brandId || (req.body && req.body.brandId);
+    const agentId = req.params.agentId || (req.body && req.body.agentId);
 
     const brand = await Brand.findByPk(brandId);
     const agent = await Agent.findByPk(agentId);
@@ -63,7 +63,7 @@ const processInvoice = async (req, res, next) => {
       }
       
       try {
-        const n8nRes = await fetch('https://colonel.app.n8n.cloud/api/v1/executions?status=running&limit=1', {
+        const n8nRes = await fetch('https://colonel1234.app.n8n.cloud/api/v1/executions?status=running&limit=1', {
           headers: { 'X-N8N-API-KEY': process.env.n8n_api_key }
         });
         const n8nData = await n8nRes.json();
@@ -210,7 +210,7 @@ const cancelInvoice = async (req, res, next) => {
 
     // Step 1 — Stop n8n execution
     try {
-      await fetch(`https://colonel.app.n8n.cloud/api/v1/executions/${execution.executionId}/stop`, {
+      await fetch(`https://colonel1234.app.n8n.cloud/api/v1/executions/${execution.executionId}/stop`, {
         method: 'POST',
         headers: { 'X-N8N-API-KEY': process.env.n8n_api_key }
       });

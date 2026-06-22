@@ -56,7 +56,7 @@ const seedInvoiceAgent = async () => {
             { name: 'igst_amount', type: 'DECIMAL' },
 
             // totals
-            { name: 'GST_AMOUNT', type: 'DECIMAL' },
+            { name: 'gst_amount', type: 'DECIMAL' },
 
             // file reference
             { name: 'invoice_link', type: 'STRING' },
