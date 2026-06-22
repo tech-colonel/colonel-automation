@@ -6,15 +6,33 @@ const { markDone } = require('../../../utils/invoiceEvents');
 const { addInvoiceId, clearExecution } = require('../../../utils/executionStore');
 
 // ─── Helper: Parse Date ───────────────────────
+const MONTH_MAP = {
+    jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+    jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
+};
+
 const parseDate = (dString) => {
-    if (!dString) return null;
+    if (!dString || dString === 'null' || dString === 'undefined' || String(dString).trim() === '') return null;
+    const s = String(dString).trim();
     try {
-        const parts = dString.split(/[-/]/);
+        // Format: D-Mon-YY or DD-Mon-YYYY  e.g. "2-May-26", "15-Jan-2026"
+        const nameMatch = s.match(/^(\d{1,2})[-\/\s]([A-Za-z]{3,9})[-\/\s](\d{2,4})$/);
+        if (nameMatch) {
+            const [, day, mon, yr] = nameMatch;
+            const mm = MONTH_MAP[mon.toLowerCase().slice(0, 3)];
+            if (mm) {
+                const year = yr.length === 2 ? (parseInt(yr) >= 50 ? `19${yr}` : `20${yr}`) : yr;
+                return new Date(`${year}-${mm}-${day.padStart(2, '0')}`);
+            }
+        }
         // Format: DD-MM-YYYY or DD/MM/YYYY
+        const parts = s.split(/[-/]/);
         if (parts.length === 3 && parts[2].length === 4) {
             return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
         }
-        return new Date(dString);
+        // ISO or other standard formats
+        const d = new Date(s);
+        return isNaN(d.getTime()) ? null : d;
     } catch (err) {
         return null;
     }
@@ -164,8 +182,8 @@ const feedInvoicesFromN8n = async (req, res, next) => {
                     company: row.company || null,
                     vendor_name_tally: row.vendor_name_tally || null,
                     invoice_number: row.invoice_number || null,
-                    invoice_date: row.invoice_date ? parseDate(row.invoice_date) : null,
-                    due_date: row.due_date ? parseDate(row.due_date) : null,
+                    invoice_date: parseDate(row.invoice_date),
+                    due_date: parseDate(row.due_date),
                     seller_gstin: row.seller_gstin || null,
                     buyer_gstin: row.buyer_gstin || null,
                     voucher_type: row.voucher_type || null,
@@ -184,8 +202,8 @@ const feedInvoicesFromN8n = async (req, res, next) => {
             company: row.company || null,
             vendor_name_tally: row.vendor_name_tally || null,
             invoice_number: row.invoice_number || null,
-            invoice_date: row.invoice_date ? parseDate(row.invoice_date) : null,
-            due_date: row.due_date ? parseDate(row.due_date) : null,
+            invoice_date: parseDate(row.invoice_date),
+            due_date: parseDate(row.due_date),
             seller_gstin: row.seller_gstin || null,
             buyer_gstin: row.buyer_gstin || null,
             voucher_type: row.voucher_type || null,
@@ -203,7 +221,7 @@ const feedInvoicesFromN8n = async (req, res, next) => {
             sgst_amount: parseFloat(row.sgst_amount) || 0,
             igst_amount: parseFloat(row.igst_amount) || 0,
             gst_amount: parseFloat(row.GST_AMOUNT || row.gst_amount) || 0,
-            taxable_value: parseFloat(row['taxable value'] || row.taxable_value) || 0,
+            taxable_value: parseFloat(row['taxable value'] || row.taxable_value || row.amount) || 0,
             invoice_link: row.Invoice_link || row.invoice_link || null,
             status: 'Processed'
         }));
