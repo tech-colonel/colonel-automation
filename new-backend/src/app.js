@@ -31,6 +31,7 @@ const cfoAnalyticsRoutes = require('./routes/cfoAnalyticsRoutes');
 const invoiceRoutes = require('./routes/invoiceRoutes');
 const orderCycleRoutes = require('./routes/orderCycleRoutes');
 const settlementRoutes = require('./routes/settlementRoutes');
+const gstr3bRoutes = require('./routes/gstr3bRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api', brandRoutes);
@@ -41,6 +42,7 @@ app.use('/api', cfoAnalyticsRoutes);
 app.use('/api', invoiceRoutes);
 app.use('/api', orderCycleRoutes);
 app.use('/api', settlementRoutes);
+app.use('/api', gstr3bRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

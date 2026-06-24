@@ -18,7 +18,7 @@ import InvoiceAgentWorkspace from './InvoiceAgentWorkspace';
 import OrderCycleShopifyWorkspace from './OrderCycleShopifyWorkspace';
 import SettlementAmazonWorkspace from './SettlementAmazonWorkspace';
 import TotalSalesAnalyzerModal from './TotalSalesAnalyzerModal';
-import NykaaWorkspace from './NykaaWorkspace';
+import Gstr3bTallyWorkspace from './Gstr3bTallyWorkspace';
 
 const AgentWorkspace = () => {
   const { brandId, agentId } = useParams();
@@ -113,36 +113,44 @@ const AgentWorkspace = () => {
   const fetchData = async () => {
     try {
       const agentType = await detectAgentType();
-      const [agentRes, masterRes, filesRes] = await Promise.all([
-        api.get(`/api/agents`),
-        api.get(`/api/brands/${brandId}/agents/${agentId}/${agentType}/master`),
-        api.get(`/api/brands/${brandId}/agents/${agentId}/working-files`)
-      ]);
-
+      // Load the agent list first so the correct workspace renders even if the
+      // (sales-only) master / working-files endpoints don't apply to this agent
+      // (e.g. invoice, order-cycle, settlement — they self-load their own data).
+      const agentRes = await api.get(`/api/agents`);
       const currentAgent = agentRes.data.find(a => a.id.toString() === agentId.toString());
-      console.log("currect agent", currentAgent);
       setAllAgents(agentRes.data);
       setAgent(currentAgent);
-      setMasterData(masterRes.data);
 
-      const monthOrder = {
-        'January': 1, 'February': 2, 'March': 3, 'April': 4,
-        'May': 5, 'June': 6, 'July': 7, 'August': 8,
-        'September': 9, 'October': 10, 'November': 11, 'December': 12
-      };
+      try {
+        const [masterRes, filesRes] = await Promise.all([
+          api.get(`/api/brands/${brandId}/agents/${agentId}/${agentType}/master`),
+          api.get(`/api/brands/${brandId}/agents/${agentId}/working-files`)
+        ]);
+        setMasterData(masterRes.data);
 
-      const sortedFiles = filesRes.data.sort((a, b) => {
-        const yearA = parseInt(a.year) || 0;
-        const yearB = parseInt(b.year) || 0;
-        if (yearA !== yearB) {
-          return yearB - yearA;
-        }
-        const monthA = monthOrder[a.month] || 0;
-        const monthB = monthOrder[b.month] || 0;
-        return monthB - monthA;
-      });
+        const monthOrder = {
+          'January': 1, 'February': 2, 'March': 3, 'April': 4,
+          'May': 5, 'June': 6, 'July': 7, 'August': 8,
+          'September': 9, 'October': 10, 'November': 11, 'December': 12
+        };
 
-      setFiles(sortedFiles);
+        const sortedFiles = filesRes.data.sort((a, b) => {
+          const yearA = parseInt(a.year) || 0;
+          const yearB = parseInt(b.year) || 0;
+          if (yearA !== yearB) {
+            return yearB - yearA;
+          }
+          const monthA = monthOrder[a.month] || 0;
+          const monthB = monthOrder[b.month] || 0;
+          return monthB - monthA;
+        });
+
+        setFiles(sortedFiles);
+      } catch (e) {
+        // Non-sales agents (invoice / order-cycle / settlement) don't have a
+        // sales master endpoint — render their own workspace, don't hard-fail.
+        console.warn('master/working-files not applicable for this agent:', e?.message);
+      }
     } catch (error) {
       console.error('Failed to load data:', error);
       toast.error('Failed to load workspace data. Please refresh the page.');
@@ -534,6 +542,7 @@ const AgentWorkspace = () => {
   const isNykaa = agent?.name?.toLowerCase().includes('nykaa');
   const isMirrow = agent?.name?.toLowerCase().includes('mirrow');
   const isCread = agent?.name?.toLowerCase().includes('cread');
+  const isGstr3b = agent?.name === 'gstr_3b_tally_entry';
 
   return (
     <DashboardLayout sidebarItems={sidebarItems}>
@@ -584,25 +593,6 @@ const AgentWorkspace = () => {
           </div>
           <OrderCycleShopifyWorkspace agent={agent} />
         </div>
-      ) : isNykaa ? (
-        <div className="p-6" data-testid="nykaa-workspace">
-          <div className="mb-8 flex justify-between items-start">
-            <div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate(`/brands/${brandId}/dashboard`)}
-                className="mb-4"
-                data-testid="back-button"
-              >
-                ← Back to Dashboard
-              </Button>
-              <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{agent?.name}</h1>
-              <p className="text-slate-600 mt-1">{agent?.description}</p>
-            </div>
-          </div>
-          <NykaaWorkspace agent={agent} />
-        </div>
       ) : isSettlement ? (
         <div className="p-6" data-testid="settlement-amazon-workspace">
           <div className="mb-8 flex justify-between items-start">
@@ -621,6 +611,22 @@ const AgentWorkspace = () => {
             </div>
           </div>
           <SettlementAmazonWorkspace agent={agent} />
+        </div>
+      ) : isGstr3b ? (
+        <div className="p-6">
+          <div className="mb-6">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(`/brands/${brandId}/dashboard`)}
+              className="mb-4"
+            >
+              ← Back to Dashboard
+            </Button>
+            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">GSTR-3B Tally Entry</h1>
+            <p className="text-slate-600 mt-1">Generate Tally journal entries from GSTR-3B returns</p>
+          </div>
+          <Gstr3bTallyWorkspace brandId={brandId} />
         </div>
       ) : (
         <>
