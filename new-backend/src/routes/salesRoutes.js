@@ -151,6 +151,7 @@ router.post('/brands/:brandId/agents/:agentId/total-sales-analyzer/dashboard', a
 
 const salesMirrowController = require('../controllers/agents/sales-mirrow/salesMirrowController');
 const salesCreadController = require('../controllers/agents/sales-cread/salesCreadController');
+const salesLimeroadController = require('../controllers/agents/sales-limeroad/salesLimeroadController');
 
 // ─── Mirrow Routes ─────────────────────────────────────────────────────────────
 router.get('/brands/:brandId/agents/:agentId/mirrow/master', authenticateToken, salesMirrowController.getMasterData);
@@ -171,5 +172,13 @@ router.post('/brands/:brandId/agents/:agentId/cread/generate', authenticateToken
 router.post('/brands/:brandId/agents/:agentId/cread/generate/preview', authenticateToken, upload.single('file'), salesCreadController.generatePreview);
 router.post('/brands/:brandId/agents/:agentId/cread/generate/commit', authenticateToken, salesCreadController.generateCommit);
 router.post('/brands/:brandId/agents/:agentId/cread/generate/discard', authenticateToken, salesCreadController.generateDiscard);
+
+// ─── LimeRoad Routes ───────────────────────────────────────────────────────────
+router.get('/brands/:brandId/agents/:agentId/limeroad/master', authenticateToken, salesLimeroadController.getMasterData);
+router.post('/brands/:brandId/agents/:agentId/limeroad/master/sku', authenticateToken, upload.single('file'), salesLimeroadController.uploadSkuMaster);
+router.post('/brands/:brandId/agents/:agentId/limeroad/master/ledger', authenticateToken, upload.single('file'), salesLimeroadController.uploadLedgerMaster);
+router.post('/brands/:brandId/agents/:agentId/limeroad/generate/preview', authenticateToken, upload.single('file'), salesLimeroadController.generatePreview);
+router.post('/brands/:brandId/agents/:agentId/limeroad/generate/commit',  authenticateToken, salesLimeroadController.generateCommit);
+router.post('/brands/:brandId/agents/:agentId/limeroad/generate/discard', authenticateToken, salesLimeroadController.generateDiscard);
 
 module.exports = router;

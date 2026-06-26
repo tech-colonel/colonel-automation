@@ -1,0 +1,12 @@
+.agents/
+.cursor/
+.github/
+.jetro/
+.mcp.json
+.windsurfrules
+AGENT.md
+CLAUDE.md
+new-backend/node_modules
+projects/
+reco-engine/
+frontend/node_modules
