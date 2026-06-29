@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../components/layout/DashboardLayout';
-import { LayoutDashboard, Building2, Bot, Users as UsersIcon, Link as LinkIcon, Plus, Trash2, Database, AlertTriangle, Loader2 } from 'lucide-react';
+import { LayoutDashboard, Building2, Bot, Users as UsersIcon, Link as LinkIcon, Plus, Trash2, Database, AlertTriangle, Loader2, GitBranch } from 'lucide-react';
+import WorkflowManagerModal from './WorkflowManagerModal';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
@@ -182,6 +183,7 @@ const AgentsPage = () => {
 
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [manageTarget, setManageTarget] = useState(null);
+  const [workflowTarget, setWorkflowTarget] = useState(null);
 
   useEffect(() => {
     fetchAgents();
@@ -287,6 +289,13 @@ const AgentsPage = () => {
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
                             <button
+                              onClick={() => setWorkflowTarget(agent)}
+                              title="Manage Workflows"
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-100 transition-colors"
+                            >
+                              <GitBranch className="h-3.5 w-3.5" /> Workflows
+                            </button>
+                            <button
                               onClick={() => setManageTarget(agent)}
                               title="Manage SKU & Ledger Data"
                               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
@@ -377,6 +386,13 @@ const AgentsPage = () => {
         agent={manageTarget}
         open={!!manageTarget}
         onClose={() => setManageTarget(null)}
+      />
+
+      {/* Workflow Manager Dialog */}
+      <WorkflowManagerModal
+        agent={workflowTarget}
+        open={!!workflowTarget}
+        onClose={() => setWorkflowTarget(null)}
       />
     </DashboardLayout>
   );
