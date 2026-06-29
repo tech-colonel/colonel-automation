@@ -187,6 +187,161 @@ const AddComputedColumnForm = ({ availableColumns, onAdd, onCancel }) => {
   );
 };
 
+// ─── Excel Formula Builder ────────────────────────────────────────────────────
+
+const EXCEL_FUNCTIONS = [
+  { label: 'SUMIF',     tpl: 'SUMIF("RangeCol", , "SumCol")',              hint: 'Sum where range matches criteria' },
+  { label: 'SUMIFS',    tpl: 'SUMIFS("SumCol", "Range1", , "Range2", )',   hint: 'Sum with multiple conditions' },
+  { label: 'COUNTIF',   tpl: 'COUNTIF("RangeCol", )',                      hint: 'Count rows matching criteria' },
+  { label: 'COUNTIFS',  tpl: 'COUNTIFS("Range1", , "Range2", )',           hint: 'Count with multiple conditions' },
+  { label: 'AVERAGEIF', tpl: 'AVERAGEIF("RangeCol", , "AvgCol")',          hint: 'Average where range matches' },
+  { label: 'VLOOKUP',   tpl: 'VLOOKUP(, "LookupCol", "ReturnCol")',        hint: 'Lookup value across rows' },
+  { label: 'MAXIF',     tpl: 'MAXIF("RangeCol", , "MaxCol")',              hint: 'Max value where range matches' },
+  { label: 'MINIF',     tpl: 'MINIF("RangeCol", , "MinCol")',              hint: 'Min value where range matches' },
+];
+
+const ExcelFormulaBuilder = ({ formula, onChange, availableColumns }) => {
+  const inputRef = useRef(null);
+
+  const insertAt = (text) => {
+    const el = inputRef.current;
+    if (!el) { onChange(formula + text); return; }
+    const start = el.selectionStart;
+    const end   = el.selectionEnd;
+    const next  = formula.slice(0, start) + text + formula.slice(end);
+    onChange(next);
+    setTimeout(() => { el.setSelectionRange(start + text.length, start + text.length); el.focus(); }, 0);
+  };
+
+  const ownCols = availableColumns.filter(c => !c.fromSheet);
+  const sheetGroups = availableColumns.filter(c => c.fromSheet).reduce((acc, c) => {
+    if (!acc[c.fromSheet]) acc[c.fromSheet] = [];
+    acc[c.fromSheet].push(c);
+    return acc;
+  }, {});
+
+  return (
+    <div className="space-y-2">
+      {/* Syntax hint */}
+      <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-700 leading-relaxed">
+        <strong>Syntax:</strong> Use <code className="bg-sky-100 px-1 rounded font-mono">"Column Name"</code> for whole-column references (range/lookup args) and <code className="bg-sky-100 px-1 rounded font-mono">{'{Column Name}'}</code> for current-row values (criteria args).<br />
+        <span className="text-sky-500">Example: <code className="font-mono">SUMIF("SKU", {'{SKU}'}, "Revenue")</code></span>
+      </div>
+
+      {/* Function template buttons */}
+      <div className="p-2 bg-sky-50 border border-sky-200 rounded-lg">
+        <p className="text-xs font-semibold text-sky-700 mb-1.5">Insert function:</p>
+        <div className="flex flex-wrap gap-1">
+          {EXCEL_FUNCTIONS.map(f => (
+            <button key={f.label} type="button" title={f.hint}
+              onClick={() => insertAt(f.tpl)}
+              className="rounded px-2 py-0.5 text-xs font-semibold bg-sky-600 text-white hover:bg-sky-700 cursor-pointer">
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Column chips — two groups */}
+      {availableColumns.length > 0 && (
+        <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+          {/* Whole-column refs */}
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Whole-column <span className="font-mono text-amber-700">"Name"</span> (for range/lookup args):</p>
+            <div className="flex flex-wrap gap-1">
+              {ownCols.map(c => (
+                <button key={`str-${c.key}`} type="button"
+                  onClick={() => insertAt(`"${c.label}"`)}
+                  className="rounded px-1.5 py-0.5 text-xs font-mono font-medium bg-amber-100 text-amber-800 hover:bg-amber-200 cursor-pointer">
+                  "{c.label}"
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Current-row value refs */}
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Current-row <span className="font-mono text-indigo-700">{'{Name}'}</span> (for criteria/lookup values):</p>
+            <div className="flex flex-wrap gap-1">
+              {ownCols.map(c => (
+                <button key={`ref-${c.key}`} type="button"
+                  onClick={() => insertAt(c.insertText)}
+                  className="rounded px-1.5 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-700 hover:bg-indigo-200 cursor-pointer">
+                  {c.label}
+                </button>
+              ))}
+              {Object.entries(sheetGroups).map(([sName, cols]) => cols.map(c => (
+                <button key={`ref-${c.key}`} type="button"
+                  onClick={() => insertAt(c.insertText)}
+                  className="rounded px-1.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 hover:bg-amber-200 cursor-pointer">
+                  {c.label}
+                </button>
+              )))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Formula input */}
+      <Input ref={inputRef} value={formula} onChange={e => onChange(e.target.value)}
+        placeholder='e.g. SUMIF("Transaction Type", {Transaction Type}, "Amount")'
+        className="font-mono text-sm" />
+
+      {/* Basic math operators */}
+      <div className="flex flex-wrap gap-1">
+        {['+', '-', '*', '/', '(', ')'].map(sym => (
+          <button key={sym} type="button" onClick={() => insertAt(sym)}
+            className="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-mono text-slate-600 hover:bg-slate-50">
+            {sym}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ─── Add Excel Formula Column Form ────────────────────────────────────────────
+
+const AddExcelColumnForm = ({ availableColumns, onAdd, onCancel }) => {
+  const [label,   setLabel]   = useState('');
+  const [formula, setFormula] = useState('');
+
+  const handleAdd = () => {
+    if (!label.trim())   { toast.error('Column name is required'); return; }
+    if (!formula.trim()) { toast.error('Formula is required');     return; }
+    onAdd({ label: label.trim(), formula: formula.trim() });
+    setLabel(''); setFormula('');
+  };
+
+  return (
+    <div className="border border-sky-200 bg-sky-50 rounded-lg p-3 space-y-2.5">
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-bold bg-sky-600 text-white px-2 py-0.5 rounded tracking-wide">Σ EXCEL</span>
+        <p className="text-xs text-sky-700 font-medium">Cross-row formula column</p>
+      </div>
+      <div>
+        <Label className="text-xs text-slate-600">Column Name *</Label>
+        <Input value={label} onChange={e => setLabel(e.target.value)}
+          placeholder="e.g. Total SKU Revenue" className="mt-1 h-8 text-sm"
+          onKeyDown={e => e.key === 'Enter' && handleAdd()} />
+      </div>
+      <div>
+        <Label className="text-xs text-slate-600">Formula *</Label>
+        <div className="mt-1">
+          <ExcelFormulaBuilder formula={formula} onChange={setFormula} availableColumns={availableColumns} />
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <Button size="sm" onClick={handleAdd} className="h-7 text-xs bg-sky-600 hover:bg-sky-700 text-white">
+          <Check className="h-3 w-3 mr-1" /> Add
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onCancel} className="h-7 text-xs">
+          <X className="h-3 w-3 mr-1" /> Cancel
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 // ─── Row Filters Section ──────────────────────────────────────────────────────
 
 const FILTER_OPERATORS = [
@@ -575,6 +730,7 @@ const GroupBySection = ({ sheet, onChange }) => {
 
 const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, agentId, onChange }) => {
   const [showAddComputed, setShowAddComputed] = useState(false);
+  const [showAddExcel,    setShowAddExcel]    = useState(false);
   const [showAddMaster,   setShowAddMaster]   = useState(false);
   const [editingColId,    setEditingColId]    = useState(null);
   const [editLabel,       setEditLabel]       = useState('');
@@ -662,6 +818,18 @@ const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, agentId, onChan
     setShowAddComputed(false);
   };
 
+  const addExcel = ({ label, formula }) => {
+    const key = `excel_${label.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}_${Date.now()}`;
+    onChange({
+      ...sheet,
+      columns: [
+        ...sheet.columns,
+        { id: makeColId(), key, label, type: 'excel', formula, order: sheet.columns.length }
+      ]
+    });
+    setShowAddExcel(false);
+  };
+
   const addMasterColumn = (colDef) => {
     const key = `master_${colDef.label.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}_${Date.now()}`;
     onChange({
@@ -710,8 +878,8 @@ const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, agentId, onChan
     setEditingColId(null);
   };
 
-  const computedCols = sheet.columns.filter(c => c.type === 'computed');
-  const masterCols   = sheet.columns.filter(c => c.type === 'master_lookup');
+  const derivedCols = sheet.columns.filter(c => c.type === 'computed' || c.type === 'excel');
+  const masterCols  = sheet.columns.filter(c => c.type === 'master_lookup');
 
   // For the formula builder: up to end of current computed col list (or end for new)
   const formulaColumnsForNew = getFormulaColumns(sheetIndex, allSheets, sheet.columns.length);
@@ -800,85 +968,95 @@ const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, agentId, onChan
         </div>
       )}
 
-      {/* Computed columns */}
+      {/* Computed columns — Math + Excel */}
       <div>
         <div className="flex items-center justify-between mb-1.5">
           <Label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
             Computed Columns
           </Label>
-          <button
-            type="button"
-            onClick={() => { setShowAddComputed(true); setEditingColId(null); }}
-            className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-          >
-            <Plus className="h-3 w-3" /> Add Computed Column
-          </button>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => { setShowAddComputed(true); setShowAddExcel(false); setEditingColId(null); }}
+              className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800 border border-indigo-200 rounded px-2 py-0.5 bg-white hover:bg-indigo-50"
+            >
+              <Plus className="h-3 w-3" /> Math
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowAddExcel(true); setShowAddComputed(false); setEditingColId(null); }}
+              className="inline-flex items-center gap-1 text-xs font-medium text-sky-600 hover:text-sky-800 border border-sky-200 rounded px-2 py-0.5 bg-white hover:bg-sky-50"
+            >
+              <Plus className="h-3 w-3" /> Excel
+            </button>
+          </div>
         </div>
 
-        {computedCols.length === 0 && !showAddComputed && (
+        {derivedCols.length === 0 && !showAddComputed && !showAddExcel && (
           <div className="text-xs text-slate-400 py-2 text-center border border-dashed border-slate-200 rounded-lg">
-            No computed columns yet. Click "Add Computed Column" to define one.
+            No computed columns. Add a <strong>Math</strong> column for per-row formulas or an <strong>Excel</strong> column for SUMIF / VLOOKUP.
           </div>
         )}
 
         <div className="space-y-1.5">
-          {computedCols.map((col) => (
-            <div key={col.id} className="border border-amber-200 bg-amber-50 rounded-lg p-2.5">
-              {editingColId === col.id ? (
-                <div className="space-y-2">
-                  <Input
-                    value={editLabel}
-                    onChange={e => setEditLabel(e.target.value)}
-                    className="h-7 text-sm"
-                    placeholder="Column name"
-                  />
-                  <FormulaBuilder
-                    formula={editFormula}
-                    onChange={setEditFormula}
-                    availableColumns={formulaColumnsForEdit(col.id)}
-                  />
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={saveEditComputed} className="h-6 text-xs">
-                      <Check className="h-3 w-3 mr-1" /> Save
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setEditingColId(null)} className="h-6 text-xs">
-                      Cancel
-                    </Button>
+          {derivedCols.map((col) => {
+            const isExcel = col.type === 'excel';
+            return (
+              <div key={col.id} className={`border rounded-lg p-2.5 ${isExcel ? 'border-sky-200 bg-sky-50' : 'border-amber-200 bg-amber-50'}`}>
+                {editingColId === col.id ? (
+                  <div className="space-y-2">
+                    <Input value={editLabel} onChange={e => setEditLabel(e.target.value)}
+                      className="h-7 text-sm" placeholder="Column name" />
+                    {isExcel ? (
+                      <ExcelFormulaBuilder formula={editFormula} onChange={setEditFormula}
+                        availableColumns={formulaColumnsForEdit(col.id)} />
+                    ) : (
+                      <FormulaBuilder formula={editFormula} onChange={setEditFormula}
+                        availableColumns={formulaColumnsForEdit(col.id)} />
+                    )}
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={saveEditComputed} className="h-6 text-xs">
+                        <Check className="h-3 w-3 mr-1" /> Save
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditingColId(null)} className="h-6 text-xs">
+                        Cancel
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <span className="text-sm font-medium text-amber-900">{col.label}</span>
-                    <p className="text-xs text-amber-600 font-mono mt-0.5 break-all">{col.formula}</p>
+                ) : (
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        {isExcel && (
+                          <span className="text-[10px] font-bold bg-sky-600 text-white px-1 py-px rounded leading-none">Σ</span>
+                        )}
+                        <span className={`text-sm font-medium ${isExcel ? 'text-sky-900' : 'text-amber-900'}`}>{col.label}</span>
+                      </div>
+                      <p className={`text-xs font-mono mt-0.5 break-all ${isExcel ? 'text-sky-600' : 'text-amber-600'}`}>{col.formula}</p>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <button type="button" onClick={() => startEditComputed(col)}
+                        className={`p-1 rounded ${isExcel ? 'hover:bg-sky-100 text-sky-500' : 'hover:bg-amber-100 text-amber-500'}`}>
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </button>
+                      <button type="button" onClick={() => deleteComputed(col.id)}
+                        className={`p-1 rounded hover:bg-red-100 ${isExcel ? 'text-sky-400' : 'text-amber-500'} hover:text-red-500`}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => startEditComputed(col)}
-                      className="p-1 rounded hover:bg-amber-100 text-amber-500"
-                    >
-                      <Edit2 className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteComputed(col.id)}
-                      className="p-1 rounded hover:bg-red-100 text-amber-500 hover:text-red-500"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            );
+          })}
 
           {showAddComputed && (
-            <AddComputedColumnForm
-              availableColumns={formulaColumnsForNew}
-              onAdd={addComputed}
-              onCancel={() => setShowAddComputed(false)}
-            />
+            <AddComputedColumnForm availableColumns={formulaColumnsForNew}
+              onAdd={addComputed} onCancel={() => setShowAddComputed(false)} />
+          )}
+          {showAddExcel && (
+            <AddExcelColumnForm availableColumns={formulaColumnsForNew}
+              onAdd={addExcel} onCancel={() => setShowAddExcel(false)} />
           )}
         </div>
       </div>
@@ -955,10 +1133,12 @@ const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, agentId, onChan
                       ? 'bg-slate-100 text-slate-600'
                       : col.type === 'master_lookup'
                         ? 'bg-violet-100 text-violet-700'
-                        : 'bg-amber-100 text-amber-700'
+                        : col.type === 'excel'
+                          ? 'bg-sky-100 text-sky-700'
+                          : 'bg-amber-100 text-amber-700'
                   }`}
                 >
-                  {col.type === 'computed' ? '✦ ' : col.type === 'master_lookup' ? '⬡ ' : ''}{col.label}
+                  {col.type === 'computed' ? '✦ ' : col.type === 'excel' ? 'Σ ' : col.type === 'master_lookup' ? '⬡ ' : ''}{col.label}
                 </span>
               ))}
           </div>
@@ -1333,6 +1513,7 @@ const WorkflowManagerModal = ({ agent, open, onClose }) => {
                 {workflows.map(wf => {
                   const sheetCount    = (wf.sheets || []).length;
                   const computedCount = (wf.sheets || []).reduce((n, s) => n + (s.columns || []).filter(c => c.type === 'computed').length, 0);
+                  const excelCount    = (wf.sheets || []).reduce((n, s) => n + (s.columns || []).filter(c => c.type === 'excel').length, 0);
                   return (
                     <div key={wf.id} className="flex items-center justify-between px-4 py-3">
                       <div className="flex-1 min-w-0 mr-3">
@@ -1343,7 +1524,12 @@ const WorkflowManagerModal = ({ agent, open, onClose }) => {
                           </Badge>
                           {computedCount > 0 && (
                             <Badge variant="outline" className="text-xs text-amber-700 border-amber-200">
-                              {computedCount} computed
+                              {computedCount} math
+                            </Badge>
+                          )}
+                          {excelCount > 0 && (
+                            <Badge variant="outline" className="text-xs text-sky-700 border-sky-200">
+                              {excelCount} excel
                             </Badge>
                           )}
                         </div>

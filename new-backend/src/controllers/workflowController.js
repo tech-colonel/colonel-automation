@@ -34,6 +34,96 @@ function evaluateFormula(formula, scope) {
   }
 }
 
+// ─── Excel Formula Evaluator (cross-row: SUMIF, VLOOKUP, etc.) ───────────────
+
+function evaluateFormulaWithHelpers(formula, rowScope, allRows) {
+  try {
+    // Replace {ColumnName} with current row values
+    let expr = formula.replace(/\{([^}]+)\}/g, (_, colRef) => {
+      const val = rowScope[colRef];
+      if (val === null || val === undefined || val === '') return '0';
+      const num = parseFloat(String(val).replace(/,/g, ''));
+      if (!isNaN(num)) return String(num);
+      return `"${String(val).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+    });
+
+    // IF() → ternary (word-boundary \b prevents matching SUMIF / COUNTIF)
+    expr = expr.replace(
+      /\bIF\s*\(([^,()]+(?:\([^()]*\)[^,()]*)*)\s*,\s*([^,()]+(?:\([^()]*\)[^,()]*)*)\s*,\s*([^()]+(?:\([^()]*\)[^()]*)*)\)/gi,
+      '(($1) ? ($2) : ($3))'
+    );
+
+    const toNum = v => {
+      const n = parseFloat(String(v === null || v === undefined ? '' : v).replace(/,/g, ''));
+      return isNaN(n) ? null : n;
+    };
+    const cmp = v => String(v === null || v === undefined ? '' : v).trim().toLowerCase();
+
+    /* ── injected helpers — column args are plain column-name strings ── */
+
+    const SUMIF = (rangeCol, criteria, sumCol) => {
+      const crit = cmp(criteria);
+      return allRows.reduce((acc, r) => {
+        if (cmp(r[rangeCol]) === crit) { const n = toNum(r[sumCol]); if (n !== null) acc += n; }
+        return acc;
+      }, 0);
+    };
+
+    const SUMIFS = (sumCol, ...pairs) => {
+      const conds = [];
+      for (let i = 0; i + 1 < pairs.length; i += 2) conds.push({ col: String(pairs[i]), val: cmp(pairs[i + 1]) });
+      return allRows.reduce((acc, r) => {
+        if (conds.every(c => cmp(r[c.col]) === c.val)) { const n = toNum(r[sumCol]); if (n !== null) acc += n; }
+        return acc;
+      }, 0);
+    };
+
+    const COUNTIF = (rangeCol, criteria) => {
+      const crit = cmp(criteria);
+      return allRows.filter(r => cmp(r[rangeCol]) === crit).length;
+    };
+
+    const COUNTIFS = (...pairs) => {
+      const conds = [];
+      for (let i = 0; i + 1 < pairs.length; i += 2) conds.push({ col: String(pairs[i]), val: cmp(pairs[i + 1]) });
+      return allRows.filter(r => conds.every(c => cmp(r[c.col]) === c.val)).length;
+    };
+
+    const AVERAGEIF = (rangeCol, criteria, avgCol) => {
+      const crit = cmp(criteria);
+      const nums = allRows.filter(r => cmp(r[rangeCol]) === crit).map(r => toNum(r[avgCol])).filter(n => n !== null);
+      return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : '';
+    };
+
+    const VLOOKUP = (lookupVal, lookupCol, returnCol) => {
+      const lv = cmp(lookupVal);
+      const found = allRows.find(r => cmp(r[lookupCol]) === lv);
+      return found ? (found[returnCol] ?? '') : '';
+    };
+
+    const MAXIF = (rangeCol, criteria, maxCol) => {
+      const nums = allRows.filter(r => cmp(r[rangeCol]) === cmp(criteria)).map(r => toNum(r[maxCol])).filter(n => n !== null);
+      return nums.length ? Math.max(...nums) : '';
+    };
+
+    const MINIF = (rangeCol, criteria, minCol) => {
+      const nums = allRows.filter(r => cmp(r[rangeCol]) === cmp(criteria)).map(r => toNum(r[minCol])).filter(n => n !== null);
+      return nums.length ? Math.min(...nums) : '';
+    };
+
+    // eslint-disable-next-line no-new-func
+    const result = new Function(
+      'SUMIF', 'SUMIFS', 'COUNTIF', 'COUNTIFS', 'AVERAGEIF', 'VLOOKUP', 'MAXIF', 'MINIF',
+      '"use strict"; return (' + expr + ');'
+    )(SUMIF, SUMIFS, COUNTIF, COUNTIFS, AVERAGEIF, VLOOKUP, MAXIF, MINIF);
+
+    if (result === null || result === undefined || (typeof result === 'number' && isNaN(result))) return '';
+    return result;
+  } catch {
+    return '';
+  }
+}
+
 // ─── Row Filters ──────────────────────────────────────────────────────────────
 
 function testFilter(row, filter) {
@@ -160,69 +250,64 @@ function applyMultiSheetWorkflow(sheets, fileBuffer, masterData = {}) {
   const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
   const allRawRows = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
 
-  const outBook = XLSX.utils.book_new();
-  const sheetResults = []; // sheetResults[i][rowIdx] = outputRow for cross-sheet refs
+  const outBook   = XLSX.utils.book_new();
+  const sheetResults = []; // sheetResults[i] = allRowsData after full evaluation
 
   for (let sheetIdx = 0; sheetIdx < sheets.length; sheetIdx++) {
-    const wfSheet = sheets[sheetIdx];
-
-    // 1. Apply per-sheet row filters
-    const rawRows = applyFilters(allRawRows, wfSheet.filters || []);
-
+    const wfSheet    = sheets[sheetIdx];
+    const rawRows    = applyFilters(allRawRows, wfSheet.filters || []);
     const orderedCols = [...(wfSheet.columns || [])].sort((a, b) => a.order - b.order);
-    const sheetRowResults = [];
 
-    const outputRows = rawRows.map((rawRow, rowIdx) => {
-      const scope = {};
-
-      // Seed source columns
-      for (const col of orderedCols) {
-        if (col.type === 'source') {
-          scope[col.label] = rawRow[col.key] !== undefined ? rawRow[col.key] : '';
-        }
-      }
-
-      // Seed cross-sheet refs: {PrevSheetName.ColumnLabel}
+    // ── Pass 1: seed source + master + cross-sheet refs for ALL rows ──────────
+    const allRowsData = rawRows.map((rawRow, rowIdx) => {
+      const row = {};
+      // cross-sheet refs
       for (let prevIdx = 0; prevIdx < sheetIdx; prevIdx++) {
-        const prevSheet = sheets[prevIdx];
+        const prevSheet  = sheets[prevIdx];
         const prevRowData = sheetResults[prevIdx]?.[rowIdx] || {};
-        for (const [colLabel, value] of Object.entries(prevRowData)) {
-          scope[`${prevSheet.name}.${colLabel}`] = value;
+        for (const [label, value] of Object.entries(prevRowData)) {
+          row[`${prevSheet.name}.${label}`] = value;
         }
       }
-
-      const outputRow = {};
+      // source + master columns
       for (const col of orderedCols) {
-        let val;
         if (col.type === 'source') {
-          val = scope[col.label];
+          row[col.label] = rawRow[col.key] !== undefined ? rawRow[col.key] : '';
         } else if (col.type === 'master_lookup') {
-          val = resolveMasterLookup(col, rawRow, masterData);
-          scope[col.label] = val;
-        } else {
-          // computed (formula or prev-sheet ref)
-          val = evaluateFormula(col.formula || '', scope);
-          scope[col.label] = val;
+          row[col.label] = resolveMasterLookup(col, rawRow, masterData);
         }
-        outputRow[col.label] = val;
       }
-
-      sheetRowResults.push({ ...outputRow });
-      return outputRow;
+      return row;
     });
 
-    // Keep pre-grouped rows in sheetResults so cross-sheet refs stay row-aligned
-    sheetResults.push(sheetRowResults);
+    // ── Pass 2: evaluate derived columns in order, updating allRowsData ───────
+    // Each column is computed for ALL rows before moving to the next, so
+    // SUMIF / VLOOKUP always see a consistent snapshot of already-evaluated cols.
+    for (const col of orderedCols) {
+      if (col.type !== 'computed' && col.type !== 'excel') continue;
 
-    // Apply group-by aggregation for the Excel output
+      const vals = allRowsData.map(rowScope =>
+        col.type === 'excel'
+          ? evaluateFormulaWithHelpers(col.formula || '', rowScope, allRowsData)
+          : evaluateFormula(col.formula || '', rowScope)
+      );
+      vals.forEach((v, i) => { allRowsData[i][col.label] = v; });
+    }
+
+    // ── Build ordered output rows ─────────────────────────────────────────────
+    const outputRows = allRowsData.map(row => {
+      const out = {};
+      for (const col of orderedCols) out[col.label] = row[col.label] ?? '';
+      return out;
+    });
+
+    sheetResults.push(allRowsData); // preserve for cross-sheet refs (pre-grouped)
+
     const finalRows = applyGroupBy(outputRows, wfSheet.groupBy);
-
     const safeSheetName = (wfSheet.name || `Sheet${sheetIdx + 1}`)
-      .replace(/[:\\/?*[\]]/g, '')
-      .slice(0, 31);
+      .replace(/[:\\/?*[\]]/g, '').slice(0, 31);
 
-    const outSheet = XLSX.utils.json_to_sheet(finalRows);
-    XLSX.utils.book_append_sheet(outBook, outSheet, safeSheetName);
+    XLSX.utils.book_append_sheet(outBook, XLSX.utils.json_to_sheet(finalRows), safeSheetName);
   }
 
   return XLSX.write(outBook, { type: 'buffer', bookType: 'xlsx' });
