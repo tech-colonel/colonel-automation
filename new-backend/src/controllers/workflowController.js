@@ -111,6 +111,48 @@ function extractHeadersFromBuffer(buffer) {
   return [];
 }
 
+// ─── Group By / Aggregation ───────────────────────────────────────────────────
+
+function aggregate(values, method) {
+  const nums = values
+    .map(v => parseFloat(String(v === null || v === undefined ? '' : v).replace(/,/g, '')))
+    .filter(n => !isNaN(n));
+  switch (method) {
+    case 'sum':    return nums.reduce((a, b) => a + b, 0);
+    case 'avg':    return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : '';
+    case 'count':  return values.length;
+    case 'min':    return nums.length ? Math.min(...nums) : '';
+    case 'max':    return nums.length ? Math.max(...nums) : '';
+    case 'first':  return values[0] ?? '';
+    case 'last':   return values[values.length - 1] ?? '';
+    case 'concat': return values.filter(v => v !== '' && v !== null && v !== undefined).join(', ');
+    default:       return values[0] ?? '';
+  }
+}
+
+function applyGroupBy(outputRows, groupByConfig) {
+  if (!groupByConfig?.enabled || !groupByConfig.columns?.length || !outputRows.length) return outputRows;
+
+  const groupColumns  = groupByConfig.columns;
+  const aggregations  = groupByConfig.aggregations || {};
+  const allColLabels  = Object.keys(outputRows[0]);
+  const nonGroupLabels = allColLabels.filter(l => !groupColumns.includes(l));
+
+  const groupMap = new Map();
+  for (const row of outputRows) {
+    const key = groupColumns.map(c => String(row[c] ?? '')).join('\x00');
+    if (!groupMap.has(key)) groupMap.set(key, []);
+    groupMap.get(key).push(row);
+  }
+
+  return Array.from(groupMap.values()).map(groupRows => {
+    const result = {};
+    for (const col of groupColumns)    result[col] = groupRows[0][col];
+    for (const col of nonGroupLabels)  result[col] = aggregate(groupRows.map(r => r[col]), aggregations[col] || 'sum');
+    return result;
+  });
+}
+
 // ─── Multi-Sheet Workflow Apply ───────────────────────────────────────────────
 
 function applyMultiSheetWorkflow(sheets, fileBuffer, masterData = {}) {
@@ -169,13 +211,17 @@ function applyMultiSheetWorkflow(sheets, fileBuffer, masterData = {}) {
       return outputRow;
     });
 
+    // Keep pre-grouped rows in sheetResults so cross-sheet refs stay row-aligned
     sheetResults.push(sheetRowResults);
+
+    // Apply group-by aggregation for the Excel output
+    const finalRows = applyGroupBy(outputRows, wfSheet.groupBy);
 
     const safeSheetName = (wfSheet.name || `Sheet${sheetIdx + 1}`)
       .replace(/[:\\/?*[\]]/g, '')
       .slice(0, 31);
 
-    const outSheet = XLSX.utils.json_to_sheet(outputRows);
+    const outSheet = XLSX.utils.json_to_sheet(finalRows);
     XLSX.utils.book_append_sheet(outBook, outSheet, safeSheetName);
   }
 

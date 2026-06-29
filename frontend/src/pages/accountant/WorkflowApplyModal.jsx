@@ -43,6 +43,7 @@ const WorkflowSelector = ({ agentId, onSelect }) => {
       {workflows.map(wf => {
         const sheets        = wf.sheets || [];
         const computedCount = sheets.reduce((n, s) => n + (s.columns || []).filter(c => c.type === 'computed').length, 0);
+        const groupedCount  = sheets.filter(s => s.groupBy?.enabled && s.groupBy?.columns?.length > 0).length;
         return (
           <button
             key={wf.id}
@@ -61,6 +62,11 @@ const WorkflowSelector = ({ agentId, onSelect }) => {
                     {computedCount} computed
                   </Badge>
                 )}
+                {groupedCount > 0 && (
+                  <Badge variant="outline" className="text-xs text-teal-700 border-teal-200">
+                    {groupedCount} grouped
+                  </Badge>
+                )}
               </div>
               {wf.description && (
                 <p className="text-xs text-slate-400 mt-0.5">{wf.description}</p>
@@ -70,6 +76,7 @@ const WorkflowSelector = ({ agentId, onSelect }) => {
                 {sheets.map(s => {
                   const srcCount  = (s.columns || []).filter(c => c.type === 'source').length;
                   const compCount = (s.columns || []).filter(c => c.type === 'computed').length;
+                  const isGrouped = s.groupBy?.enabled && s.groupBy?.columns?.length > 0;
                   return (
                     <div key={s.id} className="flex items-center gap-1 rounded-lg bg-slate-50 border border-slate-200 px-2 py-1">
                       <TableIcon className="h-3 w-3 text-slate-400" />
@@ -77,6 +84,9 @@ const WorkflowSelector = ({ agentId, onSelect }) => {
                       <span className="text-xs text-slate-400">
                         {srcCount}src{compCount > 0 ? ` +${compCount}` : ''}
                       </span>
+                      {isGrouped && (
+                        <span className="text-xs font-medium text-teal-600">· grouped</span>
+                      )}
                     </div>
                   );
                 })}

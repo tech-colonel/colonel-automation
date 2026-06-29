@@ -17,7 +17,7 @@ const makeSheetId = () => `sheet_${Date.now()}_${Math.random().toString(36).slic
 const makeColId  = () => `col_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
 function makeSheet(name, order) {
-  return { id: makeSheetId(), name, order, columns: [], filters: [] };
+  return { id: makeSheetId(), name, order, columns: [], filters: [], groupBy: { enabled: false, columns: [], aggregations: {} } };
 }
 
 // Available columns for formula builder in a given sheet
@@ -458,6 +458,119 @@ const AddMasterColumnForm = ({ rawColumns, agentId, onAdd, onCancel }) => {
   );
 };
 
+// ─── Group By Section ─────────────────────────────────────────────────────────
+
+const AGG_OPTIONS = [
+  { value: 'sum',    label: 'Sum' },
+  { value: 'avg',    label: 'Average' },
+  { value: 'count',  label: 'Count' },
+  { value: 'min',    label: 'Min' },
+  { value: 'max',    label: 'Max' },
+  { value: 'first',  label: 'First' },
+  { value: 'last',   label: 'Last' },
+  { value: 'concat', label: 'Concat' },
+];
+
+const GroupBySection = ({ sheet, onChange }) => {
+  const groupBy     = sheet.groupBy || { enabled: false, columns: [], aggregations: {} };
+  const allColLabels = [...(sheet.columns || [])].sort((a, b) => a.order - b.order).map(c => c.label).filter(Boolean);
+  const groupCols    = groupBy.columns || [];
+  const nonGroupCols = allColLabels.filter(l => !groupCols.includes(l));
+
+  const update = (patch) => onChange({ ...sheet, groupBy: { ...groupBy, ...patch } });
+
+  const toggleGroupCol = (label) => {
+    const next = groupCols.includes(label)
+      ? groupCols.filter(c => c !== label)
+      : [...groupCols, label];
+    update({ columns: next });
+  };
+
+  const setAgg = (label, method) =>
+    update({ aggregations: { ...(groupBy.aggregations || {}), [label]: method } });
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <Label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+          Group By
+          {groupBy.enabled && groupCols.length > 0 && (
+            <span className="ml-2 normal-case font-normal text-teal-600">
+              ({groupCols.length} column{groupCols.length !== 1 ? 's' : ''})
+            </span>
+          )}
+        </Label>
+        <label className="flex items-center gap-1.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={!!groupBy.enabled}
+            onChange={e => update({ enabled: e.target.checked })}
+            disabled={allColLabels.length === 0}
+            className="rounded border-slate-300 text-teal-600 h-3.5 w-3.5 cursor-pointer"
+          />
+          <span className="text-xs text-slate-500">Enable</span>
+        </label>
+      </div>
+
+      {!groupBy.enabled ? (
+        <div className="text-xs text-slate-400 py-2 text-center border border-dashed border-slate-200 rounded-lg">
+          Disabled — all rows output individually
+        </div>
+      ) : allColLabels.length === 0 ? (
+        <div className="text-xs text-slate-400 py-2 text-center border border-dashed border-slate-200 rounded-lg">
+          Add columns first
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {/* Group-key columns */}
+          <div className="border border-teal-200 bg-teal-50 rounded-lg p-2.5">
+            <p className="text-xs font-semibold text-teal-800 mb-1.5">Group by these columns:</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 max-h-28 overflow-y-auto">
+              {allColLabels.map(col => (
+                <label key={col} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={groupCols.includes(col)}
+                    onChange={() => toggleGroupCol(col)}
+                    className="rounded border-teal-300 text-teal-600 h-3.5 w-3.5 cursor-pointer"
+                  />
+                  <span className="text-xs text-teal-900 truncate">{col}</span>
+                </label>
+              ))}
+            </div>
+            {groupCols.length === 0 && (
+              <p className="text-xs text-teal-400 mt-1.5">Select at least one column</p>
+            )}
+          </div>
+
+          {/* Aggregation for remaining columns */}
+          {groupCols.length > 0 && nonGroupCols.length > 0 && (
+            <div className="border border-slate-200 bg-slate-50 rounded-lg p-2.5">
+              <p className="text-xs font-semibold text-slate-600 mb-1.5">Aggregate remaining columns:</p>
+              <div className="space-y-1">
+                {nonGroupCols.map(col => (
+                  <div key={col} className="flex items-center gap-2">
+                    <span className="text-xs text-slate-700 flex-1 min-w-0 truncate">{col}</span>
+                    <select
+                      value={(groupBy.aggregations || {})[col] || 'sum'}
+                      onChange={e => setAgg(col, e.target.value)}
+                      className="shrink-0 h-6 text-xs border border-slate-200 rounded bg-white px-1.5 focus:outline-none focus:ring-1 focus:ring-teal-400"
+                    >
+                      {AGG_OPTIONS.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ─── Sheet Editor Panel ────────────────────────────────────────────────────────
 
 const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, agentId, onChange }) => {
@@ -821,6 +934,9 @@ const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, agentId, onChan
           )}
         </div>
       </div>
+
+      {/* Group by */}
+      <GroupBySection sheet={sheet} onChange={onChange} />
 
       {/* Preview of column order */}
       {sheet.columns.length > 0 && (
@@ -1239,6 +1355,9 @@ const WorkflowManagerModal = ({ agent, open, onClose }) => {
                           {(wf.sheets || []).map(s => (
                             <span key={s.id} className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs bg-slate-100 text-slate-600">
                               <TableIcon className="h-2.5 w-2.5" /> {s.name}
+                              {s.groupBy?.enabled && s.groupBy?.columns?.length > 0 && (
+                                <span className="ml-0.5 text-teal-600 font-medium">·G</span>
+                              )}
                             </span>
                           ))}
                         </div>
