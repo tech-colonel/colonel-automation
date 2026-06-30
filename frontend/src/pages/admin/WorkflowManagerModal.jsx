@@ -990,9 +990,27 @@ const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, availableRawShe
           <Label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
             {sheet.sourceType === 'prev_sheet' ? `Columns from "${sheet.prevSheetName || '...'}"` : 'Source Columns from File'}
           </Label>
-          <span className="text-xs text-slate-400">
-            {selectedSourceKeys.size}/{effectiveRawCols.length} selected
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-400">{selectedSourceKeys.size}/{effectiveRawCols.length} selected</span>
+            {effectiveRawCols.length > 0 && (
+              <button type="button"
+                onClick={() => {
+                  const allSelected = effectiveRawCols.every(col => selectedSourceKeys.has(col));
+                  if (allSelected) {
+                    onChange({ ...sheet, columns: sheet.columns.filter(c => c.type !== 'source').map((c, i) => ({ ...c, order: i })) });
+                  } else {
+                    const existing = sheet.columns.filter(c => c.type !== 'source');
+                    const newSrc   = effectiveRawCols
+                      .filter(col => !selectedSourceKeys.has(col))
+                      .map((col, i) => ({ id: makeColId(), key: col, label: col, type: 'source', order: existing.length + i }));
+                    onChange({ ...sheet, columns: [...existing, ...newSrc].map((c, i) => ({ ...c, order: i })) });
+                  }
+                }}
+                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+                {effectiveRawCols.every(col => selectedSourceKeys.has(col)) ? 'Deselect all' : 'Select all'}
+              </button>
+            )}
+          </div>
         </div>
 
         {effectiveRawCols.length === 0 ? (
