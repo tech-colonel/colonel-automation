@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/modal';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
-import { GitBranch, Upload, Download, Loader2, Check, ChevronRight, TableIcon } from 'lucide-react';
+import { GitBranch, Upload, Download, Loader2, Check, ChevronRight, TableIcon, GitMerge } from 'lucide-react';
 import api from '../../lib/api';
 import { toast } from 'sonner';
 
@@ -78,12 +78,16 @@ const WorkflowSelector = ({ agentId, onSelect }) => {
                   const compCount = (s.columns || []).filter(c => c.type === 'computed').length;
                   const isGrouped = s.groupBy?.enabled && s.groupBy?.columns?.length > 0;
                   return (
-                    <div key={s.id} className="flex items-center gap-1 rounded-lg bg-slate-50 border border-slate-200 px-2 py-1">
-                      <TableIcon className="h-3 w-3 text-slate-400" />
-                      <span className="text-xs font-medium text-slate-700">{s.name}</span>
-                      <span className="text-xs text-slate-400">
-                        {srcCount}src{compCount > 0 ? ` +${compCount}` : ''}
-                      </span>
+                    <div key={s.id} className={`flex items-center gap-1 rounded-lg border px-2 py-1 ${
+                      s.type === 'merge' ? 'bg-purple-50 border-purple-200' : 'bg-slate-50 border-slate-200'
+                    }`}>
+                      {s.type === 'merge'
+                        ? <GitMerge className="h-3 w-3 text-purple-400" />
+                        : <TableIcon className="h-3 w-3 text-slate-400" />}
+                      <span className={`text-xs font-medium ${s.type === 'merge' ? 'text-purple-700' : 'text-slate-700'}`}>{s.name}</span>
+                      {s.type === 'merge'
+                        ? <span className="text-xs text-purple-400">{s.mergeConfig?.mergeType || 'join'}</span>
+                        : <span className="text-xs text-slate-400">{srcCount}src{compCount > 0 ? ` +${compCount}` : ''}</span>}
                       {isGrouped && (
                         <span className="text-xs font-medium text-teal-600">· grouped</span>
                       )}

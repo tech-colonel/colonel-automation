@@ -186,19 +186,20 @@ function resolveMasterLookup(col, row, masterData) {
   return match[returnField] !== undefined ? match[returnField] : '';
 }
 
-// ─── File Header Extraction ───────────────────────────────────────────────────
+// ─── File Header Extraction (all sheets) ─────────────────────────────────────
 
-function extractHeadersFromBuffer(buffer) {
+function extractAllSheetsFromBuffer(buffer) {
   const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true, raw: false });
-  const sheetName = workbook.SheetNames[0];
-  const sheet = workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-
-  for (const row of rows) {
-    const headers = row.map(h => String(h || '').trim()).filter(h => h !== '');
-    if (headers.length > 0) return headers;
-  }
-  return [];
+  return workbook.SheetNames.map(sheetName => {
+    const ws   = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+    let columns = [];
+    for (const row of rows) {
+      const headers = row.map(h => String(h || '').trim()).filter(h => h !== '');
+      if (headers.length > 0) { columns = headers; break; }
+    }
+    return { name: sheetName, columns };
+  });
 }
 
 // ─── Group By / Aggregation ───────────────────────────────────────────────────
@@ -243,33 +244,155 @@ function applyGroupBy(outputRows, groupByConfig) {
   });
 }
 
+// ─── Merge Sheet Apply ────────────────────────────────────────────────────────
+
+function applyMerge(mergeConfig, rawSheetMap, sheetResults, wfSheets) {
+  const { mergeType = 'join', sources = [] } = mergeConfig;
+  const cmp = v => String(v === null || v === undefined ? '' : v).trim().toLowerCase();
+
+  function getSourceRows(source) {
+    if (source.type === 'raw') return rawSheetMap[source.sheetName] || [];
+    const idx = wfSheets.findIndex(s => s.name === source.sheetName);
+    return idx >= 0 && sheetResults[idx] ? sheetResults[idx] : [];
+  }
+
+  function pickCols(row, selectedCols) {
+    if (!selectedCols || selectedCols.length === 0) return { ...row };
+    const out = {};
+    selectedCols.forEach(col => { out[col] = row[col] ?? ''; });
+    return out;
+  }
+
+  if (mergeType === 'stack') {
+    const result = [];
+    for (const src of sources) {
+      getSourceRows(src).forEach(row => result.push(pickCols(row, src.columns)));
+    }
+    return result;
+  }
+
+  if (mergeType === 'column_combine') {
+    const [srcA, srcB] = sources;
+    if (!srcA || !srcB) return [];
+    const rowsA = getSourceRows(srcA);
+    const rowsB = getSourceRows(srcB);
+    const maxLen = Math.max(rowsA.length, rowsB.length);
+    return Array.from({ length: maxLen }, (_, i) => ({
+      ...pickCols(rowsA[i] || {}, srcA.columns),
+      ...pickCols(rowsB[i] || {}, srcB.columns),
+    }));
+  }
+
+  // join (default)
+  const [srcA, srcB] = sources;
+  if (!srcA || !srcB) return [];
+  const rowsA = getSourceRows(srcA);
+  const rowsB = getSourceRows(srcB);
+  const bMap  = new Map();
+  for (const row of rowsB) {
+    const key = cmp(row[srcB.joinKey]);
+    if (!bMap.has(key)) bMap.set(key, row);
+  }
+  return rowsA.map(rowA => ({
+    ...pickCols(rowA, srcA.columns),
+    ...pickCols(bMap.get(cmp(rowA[srcA.joinKey])) || {}, srcB.columns),
+  }));
+}
+
+// ─── Formula Reference Sheet ──────────────────────────────────────────────────
+
+function buildFormulaReferenceSheet(sheets) {
+  const rows = [['Sheet', 'Column / Info', 'Type', 'Formula / Details']];
+
+  for (const sheet of sheets) {
+    if (sheet.type === 'merge') {
+      const mc = sheet.mergeConfig || {};
+      rows.push([sheet.name, '— Merge Sheet —', mc.mergeType || 'join',
+        `Sources: ${(mc.sources || []).map(s => `${s.sheetName} [${s.type}]`).join(' + ')}`]);
+      (mc.sources || []).forEach((src, i) => {
+        const lbl = ['Source A', 'Source B', 'Source C'][i] || `Source ${i + 1}`;
+        rows.push([
+          sheet.name, lbl, `${src.type} → ${src.sheetName}`,
+          `Columns: ${(src.columns || []).join(', ')}${mc.mergeType === 'join' && src.joinKey ? ` | Join key: ${src.joinKey}` : ''}`
+        ]);
+      });
+      continue;
+    }
+
+    const orderedCols = [...(sheet.columns || [])].sort((a, b) => a.order - b.order);
+    if (sheet.rawSheetName) rows.push([sheet.name, '— Source Sheet —', 'Input', sheet.rawSheetName]);
+
+    for (const col of orderedCols) {
+      let typeLabel, details;
+      switch (col.type) {
+        case 'source':        typeLabel = 'Source';                   details = col.key || col.label; break;
+        case 'computed':      typeLabel = 'Math Formula';             details = col.formula || ''; break;
+        case 'excel':         typeLabel = 'Excel Formula (cross-row)'; details = col.formula || ''; break;
+        case 'master_lookup': typeLabel = 'Master Lookup';
+          details = `Match column "${col.lookupColumn}" in ${col.masterType || 'sku'} master → return field "${col.returnField}"`; break;
+        default:              typeLabel = col.type || ''; details = col.formula || '';
+      }
+      rows.push([sheet.name || '', col.label || '', typeLabel, details]);
+    }
+
+    if (sheet.groupBy?.enabled && sheet.groupBy?.columns?.length) {
+      const aggStr = Object.entries(sheet.groupBy.aggregations || {}).map(([c, m]) => `${c}:${m}`).join(', ');
+      rows.push([sheet.name || '', '— Group By —', 'Aggregation',
+        `Group by: ${sheet.groupBy.columns.join(', ')}${aggStr ? ' | Aggregations: ' + aggStr : ''}`]);
+    }
+  }
+
+  return XLSX.utils.aoa_to_sheet(rows);
+}
+
 // ─── Multi-Sheet Workflow Apply ───────────────────────────────────────────────
 
 function applyMultiSheetWorkflow(sheets, fileBuffer, masterData = {}) {
   const workbook = XLSX.read(fileBuffer, { type: 'buffer', cellDates: true, raw: false });
-  const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-  const allRawRows = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
 
-  const outBook   = XLSX.utils.book_new();
-  const sheetResults = []; // sheetResults[i] = allRowsData after full evaluation
+  // Pre-load ALL raw input sheets
+  const rawSheetMap = {};
+  for (const sn of workbook.SheetNames) {
+    rawSheetMap[sn] = XLSX.utils.sheet_to_json(workbook.Sheets[sn], { defval: '' });
+  }
+  const defaultRawRows = rawSheetMap[workbook.SheetNames[0]] || [];
+
+  const outBook      = XLSX.utils.book_new();
+  const sheetResults = []; // sheetResults[i] = allRowsData (pre-grouped) for cross-sheet refs
 
   for (let sheetIdx = 0; sheetIdx < sheets.length; sheetIdx++) {
-    const wfSheet    = sheets[sheetIdx];
-    const rawRows    = applyFilters(allRawRows, wfSheet.filters || []);
+    const wfSheet       = sheets[sheetIdx];
+    const safeSheetName = (wfSheet.name || `Sheet${sheetIdx + 1}`)
+      .replace(/[:\\/?*[\]]/g, '').slice(0, 31);
+
+    // ── Merge sheet ───────────────────────────────────────────────────────────
+    if (wfSheet.type === 'merge') {
+      const mergeRows = applyMerge(wfSheet.mergeConfig || {}, rawSheetMap, sheetResults, sheets);
+      sheetResults.push(mergeRows);
+      XLSX.utils.book_append_sheet(
+        outBook,
+        XLSX.utils.json_to_sheet(mergeRows.length ? mergeRows : [{}]),
+        safeSheetName
+      );
+      continue;
+    }
+
+    // ── Normal sheet ──────────────────────────────────────────────────────────
+    // Use rawSheetName if set, otherwise fall back to first sheet (backward compat)
+    const sourceRows  = rawSheetMap[wfSheet.rawSheetName] || defaultRawRows;
+    const rawRows     = applyFilters(sourceRows, wfSheet.filters || []);
     const orderedCols = [...(wfSheet.columns || [])].sort((a, b) => a.order - b.order);
 
-    // ── Pass 1: seed source + master + cross-sheet refs for ALL rows ──────────
+    // Pass 1: seed source + master + cross-sheet refs for ALL rows
     const allRowsData = rawRows.map((rawRow, rowIdx) => {
       const row = {};
-      // cross-sheet refs
       for (let prevIdx = 0; prevIdx < sheetIdx; prevIdx++) {
-        const prevSheet  = sheets[prevIdx];
+        const prevSheet   = sheets[prevIdx];
         const prevRowData = sheetResults[prevIdx]?.[rowIdx] || {};
         for (const [label, value] of Object.entries(prevRowData)) {
           row[`${prevSheet.name}.${label}`] = value;
         }
       }
-      // source + master columns
       for (const col of orderedCols) {
         if (col.type === 'source') {
           row[col.label] = rawRow[col.key] !== undefined ? rawRow[col.key] : '';
@@ -280,12 +403,9 @@ function applyMultiSheetWorkflow(sheets, fileBuffer, masterData = {}) {
       return row;
     });
 
-    // ── Pass 2: evaluate derived columns in order, updating allRowsData ───────
-    // Each column is computed for ALL rows before moving to the next, so
-    // SUMIF / VLOOKUP always see a consistent snapshot of already-evaluated cols.
+    // Pass 2: evaluate derived columns across ALL rows before moving to next col
     for (const col of orderedCols) {
       if (col.type !== 'computed' && col.type !== 'excel') continue;
-
       const vals = allRowsData.map(rowScope =>
         col.type === 'excel'
           ? evaluateFormulaWithHelpers(col.formula || '', rowScope, allRowsData)
@@ -294,22 +414,19 @@ function applyMultiSheetWorkflow(sheets, fileBuffer, masterData = {}) {
       vals.forEach((v, i) => { allRowsData[i][col.label] = v; });
     }
 
-    // ── Build ordered output rows ─────────────────────────────────────────────
     const outputRows = allRowsData.map(row => {
       const out = {};
       for (const col of orderedCols) out[col.label] = row[col.label] ?? '';
       return out;
     });
 
-    sheetResults.push(allRowsData); // preserve for cross-sheet refs (pre-grouped)
+    sheetResults.push(allRowsData); // preserve pre-grouped for cross-sheet refs
 
     const finalRows = applyGroupBy(outputRows, wfSheet.groupBy);
-    const safeSheetName = (wfSheet.name || `Sheet${sheetIdx + 1}`)
-      .replace(/[:\\/?*[\]]/g, '').slice(0, 31);
-
     XLSX.utils.book_append_sheet(outBook, XLSX.utils.json_to_sheet(finalRows), safeSheetName);
   }
 
+  XLSX.utils.book_append_sheet(outBook, buildFormulaReferenceSheet(sheets), 'Formula Reference');
   return XLSX.write(outBook, { type: 'buffer', bookType: 'xlsx' });
 }
 
@@ -469,9 +586,10 @@ const extractColumns = [
   async (req, res, next) => {
     try {
       if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-      const headers = extractHeadersFromBuffer(req.file.buffer);
-      if (headers.length === 0) return res.status(400).json({ error: 'Could not extract columns from file' });
-      res.json({ columns: headers });
+      const sheets = extractAllSheetsFromBuffer(req.file.buffer);
+      if (sheets.length === 0) return res.status(400).json({ error: 'Could not extract sheets from file' });
+      // `columns` kept for backward compatibility (first sheet's columns)
+      res.json({ sheets, columns: sheets[0]?.columns || [] });
     } catch (error) {
       next(error);
     }

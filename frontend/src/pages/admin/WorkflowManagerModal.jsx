@@ -6,7 +6,7 @@ import { Label } from '../../components/ui/label';
 import { Badge } from '../../components/ui/badge';
 import {
   Plus, Trash2, Edit2, Loader2, GitBranch, Upload, ChevronLeft,
-  X, Check, TableIcon, PenLine
+  X, Check, TableIcon, PenLine, GitMerge, Layers
 } from 'lucide-react';
 import api from '../../lib/api';
 import { toast } from 'sonner';
@@ -17,7 +17,22 @@ const makeSheetId = () => `sheet_${Date.now()}_${Math.random().toString(36).slic
 const makeColId  = () => `col_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
 function makeSheet(name, order) {
-  return { id: makeSheetId(), name, order, columns: [], filters: [], groupBy: { enabled: false, columns: [], aggregations: {} } };
+  return { id: makeSheetId(), name, order, rawSheetName: null, columns: [], filters: [], groupBy: { enabled: false, columns: [], aggregations: {} } };
+}
+
+function makeMergeSheet(name, order) {
+  return {
+    id: makeSheetId(), name, order,
+    type: 'merge',
+    mergeConfig: {
+      mergeType: 'join',
+      sources: [
+        { type: 'raw', sheetName: '', columns: [], joinKey: '' },
+        { type: 'raw', sheetName: '', columns: [], joinKey: '' },
+      ]
+    },
+    columns: [], filters: [], groupBy: { enabled: false, columns: [], aggregations: {} }
+  };
 }
 
 // Available columns for formula builder in a given sheet
@@ -728,7 +743,14 @@ const GroupBySection = ({ sheet, onChange }) => {
 
 // ─── Sheet Editor Panel ────────────────────────────────────────────────────────
 
-const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, agentId, onChange }) => {
+const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, availableRawSheets = [], agentId, onChange }) => {
+  // Use columns from the selected raw sheet, fall back to first-sheet columns
+  const effectiveRawCols = React.useMemo(() => {
+    if (sheet.rawSheetName && availableRawSheets.length > 0) {
+      return availableRawSheets.find(s => s.name === sheet.rawSheetName)?.columns || rawColumns;
+    }
+    return rawColumns;
+  }, [sheet.rawSheetName, availableRawSheets, rawColumns]);
   const [showAddComputed, setShowAddComputed] = useState(false);
   const [showAddExcel,    setShowAddExcel]    = useState(false);
   const [showAddMaster,   setShowAddMaster]   = useState(false);
@@ -890,10 +912,29 @@ const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, agentId, onChan
 
   return (
     <div className="space-y-4">
+      {/* Raw sheet picker — only shown when sample file has multiple sheets */}
+      {availableRawSheets.length > 1 && (
+        <div>
+          <Label className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5 block">
+            Source Input Sheet
+          </Label>
+          <select
+            value={sheet.rawSheetName || ''}
+            onChange={e => onChange({ ...sheet, rawSheetName: e.target.value || null, columns: [] })}
+            className="w-full h-8 text-xs border border-slate-200 rounded-md px-2 focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
+          >
+            <option value="">— auto (first sheet) —</option>
+            {availableRawSheets.map(s => (
+              <option key={s.name} value={s.name}>{s.name} ({s.columns.length} cols)</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Row filters */}
       <FiltersSection
         filters={sheet.filters || []}
-        rawColumns={rawColumns}
+        rawColumns={effectiveRawCols}
         onChange={updateFilters}
       />
 
@@ -904,15 +945,17 @@ const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, agentId, onChan
             Source Columns from File
           </Label>
           <span className="text-xs text-slate-400">
-            {selectedSourceKeys.size}/{rawColumns.length} selected
+            {selectedSourceKeys.size}/{effectiveRawCols.length} selected
           </span>
         </div>
 
-        {rawColumns.length === 0 ? (
-          <p className="text-xs text-slate-400 py-2">No file uploaded yet</p>
+        {effectiveRawCols.length === 0 ? (
+          <p className="text-xs text-slate-400 py-2">
+            {availableRawSheets.length > 1 ? 'Select a source sheet above' : 'No file uploaded yet'}
+          </p>
         ) : (
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 max-h-36 overflow-y-auto border border-slate-200 rounded-lg p-2.5 bg-slate-50">
-            {rawColumns.map(col => (
+            {effectiveRawCols.map(col => (
               <label key={col} className="flex items-center gap-2 cursor-pointer group">
                 <input
                   type="checkbox"
@@ -1070,7 +1113,7 @@ const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, agentId, onChan
           <button
             type="button"
             onClick={() => { setShowAddMaster(true); setShowAddComputed(false); }}
-            disabled={rawColumns.length === 0}
+            disabled={effectiveRawCols.length === 0}
             className="inline-flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800 font-medium disabled:opacity-40"
           >
             <Plus className="h-3 w-3" /> Add Lookup Column
@@ -1104,7 +1147,7 @@ const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, agentId, onChan
 
           {showAddMaster && (
             <AddMasterColumnForm
-              rawColumns={rawColumns}
+              rawColumns={effectiveRawCols}
               agentId={agentId}
               onAdd={addMasterColumn}
               onCancel={() => setShowAddMaster(false)}
@@ -1148,15 +1191,208 @@ const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, agentId, onChan
   );
 };
 
+// ─── Merge Sheet Editor ───────────────────────────────────────────────────────
+
+const MERGE_TYPES = [
+  { value: 'join',           label: 'JOIN',    desc: 'Match rows by a key column (left join)' },
+  { value: 'stack',          label: 'STACK',   desc: 'Append rows from all sources top-to-bottom' },
+  { value: 'column_combine', label: 'COMBINE', desc: 'Zip rows side-by-side (same row index)' },
+];
+
+const MergeSheetEditor = ({ sheet, sheetIndex, allSheets, availableRawSheets, onChange }) => {
+  const mc = sheet.mergeConfig || {
+    mergeType: 'join',
+    sources: [
+      { type: 'raw', sheetName: '', columns: [], joinKey: '' },
+      { type: 'raw', sheetName: '', columns: [], joinKey: '' },
+    ]
+  };
+
+  const updateMC     = (patch) => onChange({ ...sheet, mergeConfig: { ...mc, ...patch } });
+  const updateSource = (idx, patch) => {
+    const sources = mc.sources.map((s, i) => i === idx ? { ...s, ...patch } : s);
+    updateMC({ sources });
+  };
+  const addSource    = () => updateMC({ sources: [...mc.sources, { type: 'raw', sheetName: '', columns: [], joinKey: '' }] });
+  const removeSource = (idx) => {
+    if (mc.sources.length <= 2) { toast.error('At least 2 sources required'); return; }
+    updateMC({ sources: mc.sources.filter((_, i) => i !== idx) });
+  };
+
+  const getAvailableSheetNames = (srcType) => {
+    if (srcType === 'raw') return availableRawSheets.map(s => s.name);
+    return allSheets.slice(0, sheetIndex).filter(s => s.type !== 'merge').map(s => s.name);
+  };
+
+  const getSourceCols = (src) => {
+    if (!src.sheetName) return [];
+    if (src.type === 'raw') return availableRawSheets.find(s => s.name === src.sheetName)?.columns || [];
+    const prev = allSheets.slice(0, sheetIndex).find(s => s.name === src.sheetName);
+    return prev ? prev.columns.map(c => c.label).filter(Boolean) : [];
+  };
+
+  const toggleCol = (srcIdx, col) => {
+    const cols = mc.sources[srcIdx].columns || [];
+    updateSource(srcIdx, { columns: cols.includes(col) ? cols.filter(c => c !== col) : [...cols, col] });
+  };
+
+  const srcLabels = ['Source A', 'Source B', 'Source C', 'Source D'];
+  const srcColors = [
+    { border: 'border-blue-200',   bg: 'bg-blue-50',   badge: 'bg-blue-100 text-blue-700',   check: 'text-blue-600' },
+    { border: 'border-orange-200', bg: 'bg-orange-50', badge: 'bg-orange-100 text-orange-700', check: 'text-orange-600' },
+    { border: 'border-green-200',  bg: 'bg-green-50',  badge: 'bg-green-100 text-green-700',  check: 'text-green-600' },
+    { border: 'border-rose-200',   bg: 'bg-rose-50',   badge: 'bg-rose-100 text-rose-700',    check: 'text-rose-600' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* Merge type */}
+      <div>
+        <Label className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5 block">Merge Type</Label>
+        <div className="grid grid-cols-3 gap-2">
+          {MERGE_TYPES.map(t => (
+            <button key={t.value} type="button"
+              onClick={() => updateMC({ mergeType: t.value })}
+              className={`rounded-lg border p-2.5 text-left transition-all ${
+                mc.mergeType === t.value ? 'border-purple-400 bg-purple-50' : 'border-slate-200 bg-white hover:border-purple-200'
+              }`}>
+              <div className={`text-xs font-bold mb-0.5 ${mc.mergeType === t.value ? 'text-purple-700' : 'text-slate-600'}`}>{t.label}</div>
+              <div className="text-xs text-slate-400 leading-tight">{t.desc}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Sources */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Sources</Label>
+          {mc.mergeType === 'stack' && (
+            <button type="button" onClick={addSource}
+              className="inline-flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 font-medium">
+              <Plus className="h-3 w-3" /> Add Source
+            </button>
+          )}
+        </div>
+
+        {mc.sources.map((src, srcIdx) => {
+          const avail    = getSourceCols(src);
+          const selected = src.columns || [];
+          const color    = srcColors[srcIdx] || srcColors[0];
+          const lbl      = srcLabels[srcIdx] || `Source ${srcIdx + 1}`;
+
+          return (
+            <div key={srcIdx} className={`border ${color.border} ${color.bg} rounded-lg p-3 space-y-2.5`}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-700">{lbl}</span>
+                {mc.sources.length > 2 && (
+                  <button type="button" onClick={() => removeSource(srcIdx)}
+                    className="p-1 rounded hover:bg-red-100 text-slate-400 hover:text-red-500">
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+
+              {/* Source type */}
+              <div className="flex gap-2">
+                {['raw', 'output'].map(t => (
+                  <button key={t} type="button"
+                    onClick={() => updateSource(srcIdx, { type: t, sheetName: '', columns: [], joinKey: '' })}
+                    className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                      src.type === t ? 'bg-purple-600 text-white' : 'bg-white border border-purple-200 text-purple-600 hover:bg-purple-50'
+                    }`}>
+                    {t === 'raw' ? 'Raw Input Sheet' : 'Processed Output Sheet'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Sheet picker */}
+              <div>
+                <Label className="text-xs text-slate-600">{src.type === 'raw' ? 'Input sheet' : 'Output sheet'} *</Label>
+                <select value={src.sheetName}
+                  onChange={e => updateSource(srcIdx, { sheetName: e.target.value, columns: [], joinKey: '' })}
+                  className="mt-1 w-full h-8 text-xs border border-slate-200 rounded-md px-2 focus:outline-none focus:ring-1 focus:ring-purple-400 bg-white">
+                  <option value="">— select sheet —</option>
+                  {getAvailableSheetNames(src.type).map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+
+              {/* Join key */}
+              {mc.mergeType === 'join' && avail.length > 0 && (
+                <div>
+                  <Label className="text-xs text-slate-600">Join key column *</Label>
+                  <select value={src.joinKey || ''}
+                    onChange={e => updateSource(srcIdx, { joinKey: e.target.value })}
+                    className="mt-1 w-full h-8 text-xs border border-slate-200 rounded-md px-2 focus:outline-none focus:ring-1 focus:ring-purple-400 bg-white">
+                    <option value="">— select key —</option>
+                    {avail.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {/* Column selection */}
+              {avail.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <Label className="text-xs text-slate-600">Include columns</Label>
+                    <button type="button"
+                      onClick={() => updateSource(srcIdx, { columns: selected.length === avail.length ? [] : [...avail] })}
+                      className="text-xs text-purple-600 hover:text-purple-800">
+                      {selected.length === avail.length ? 'Deselect all' : 'Select all'}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 max-h-32 overflow-y-auto border border-slate-200 rounded-lg p-2 bg-white/70">
+                    {avail.map(col => (
+                      <label key={col} className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={selected.includes(col)}
+                          onChange={() => toggleCol(srcIdx, col)}
+                          className={`rounded h-3.5 w-3.5 cursor-pointer ${color.check}`} />
+                        <span className="text-xs text-slate-700 truncate">{col}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {src.sheetName && avail.length === 0 && (
+                <p className="text-xs text-slate-400">No columns available for this sheet</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Output preview */}
+      {mc.sources.some(s => (s.columns || []).length > 0) && (
+        <div>
+          <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">
+            Output Columns Preview
+          </Label>
+          <div className="flex flex-wrap gap-1">
+            {mc.sources.flatMap((src, i) =>
+              (src.columns || []).map(col => (
+                <span key={`${i}-${col}`}
+                  className={`rounded px-2 py-0.5 text-xs ${(srcColors[i] || srcColors[0]).badge}`}>
+                  {col}
+                </span>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ─── Workflow Builder ──────────────────────────────────────────────────────────
 
 const WorkflowBuilder = ({ agent, workflow, onSaved, onCancel }) => {
   const isEdit = !!workflow;
 
-  const [step,         setStep]         = useState(isEdit ? 2 : 1);
-  const [sampleFile,   setSampleFile]   = useState(null);
-  const [extracting,   setExtracting]   = useState(false);
-  const [rawColumns,   setRawColumns]   = useState(workflow?.sample_columns || []);
+  const [step,              setStep]              = useState(isEdit ? 2 : 1);
+  const [sampleFile,        setSampleFile]        = useState(null);
+  const [extracting,        setExtracting]        = useState(false);
+  const [rawColumns,        setRawColumns]        = useState(workflow?.sample_columns || []);
+  const [availableRawSheets, setAvailableRawSheets] = useState([]);
   const [sheets,       setSheets]       = useState(() => {
     if (workflow?.sheets?.length) return workflow.sheets;
     return [makeSheet('Sheet 1', 0)];
@@ -1177,6 +1413,13 @@ const WorkflowBuilder = ({ agent, workflow, onSaved, onCancel }) => {
 
   const addSheet = () => {
     const newSheet = makeSheet(`Sheet ${sheets.length + 1}`, sheets.length);
+    setSheets(prev => [...prev, newSheet]);
+    setActiveId(newSheet.id);
+  };
+
+  const addMergeSheet = () => {
+    const mergeCount = sheets.filter(s => s.type === 'merge').length;
+    const newSheet   = makeMergeSheet(`Merge ${mergeCount + 1}`, sheets.length);
     setSheets(prev => [...prev, newSheet]);
     setActiveId(newSheet.id);
   };
@@ -1214,7 +1457,9 @@ const WorkflowBuilder = ({ agent, workflow, onSaved, onCancel }) => {
       const res = await api.post('/api/workflows/extract-columns', fd, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      setRawColumns(res.data.columns);
+      const sheets = res.data.sheets || [];
+      setAvailableRawSheets(sheets);
+      setRawColumns(res.data.columns || sheets[0]?.columns || []);
       setStep(2);
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to extract columns');
@@ -1228,9 +1473,14 @@ const WorkflowBuilder = ({ agent, workflow, onSaved, onCancel }) => {
   const handleSave = async () => {
     if (!name.trim())       { toast.error('Workflow name is required'); return; }
     if (sheets.length === 0){ toast.error('Add at least one sheet');    return; }
-    const emptySheets = sheets.filter(s => s.columns.length === 0);
+    const emptySheets = sheets.filter(s => s.type !== 'merge' && s.columns.length === 0);
     if (emptySheets.length > 0) {
       toast.error(`Sheet "${emptySheets[0].name}" has no columns selected`);
+      return;
+    }
+    const badMerge = sheets.find(s => s.type === 'merge' && !(s.mergeConfig?.sources || []).every(src => src.sheetName));
+    if (badMerge) {
+      toast.error(`Merge sheet "${badMerge.name}" has sources with no sheet selected`);
       return;
     }
     setSaving(true);
@@ -1360,11 +1610,15 @@ const WorkflowBuilder = ({ agent, workflow, onSaved, onCancel }) => {
                       onClick={() => setActiveId(sheet.id)}
                       className={`group flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
                         activeId === sheet.id
-                          ? 'border-indigo-500 text-indigo-700 bg-indigo-50'
+                          ? sheet.type === 'merge'
+                            ? 'border-purple-500 text-purple-700 bg-purple-50'
+                            : 'border-indigo-500 text-indigo-700 bg-indigo-50'
                           : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
                       }`}
                     >
-                      <TableIcon className="h-3 w-3" />
+                      {sheet.type === 'merge'
+                        ? <GitMerge className="h-3 w-3 text-purple-500" />
+                        : <TableIcon className="h-3 w-3" />}
                       {sheet.name}
                       <span className={`ml-1 text-xs ${activeId === sheet.id ? 'text-indigo-400' : 'text-slate-300'}`}>
                         ({sheet.columns.length})
@@ -1389,27 +1643,40 @@ const WorkflowBuilder = ({ agent, workflow, onSaved, onCancel }) => {
                   )}
                 </div>
               ))}
-              <button
-                type="button"
-                onClick={addSheet}
-                className="flex items-center gap-1 px-3 py-2 text-xs text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border-b-2 border-transparent shrink-0"
-              >
-                <Plus className="h-3 w-3" /> Add Sheet
+              <button type="button" onClick={addSheet}
+                className="flex items-center gap-1 px-3 py-2 text-xs text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border-b-2 border-transparent shrink-0">
+                <Plus className="h-3 w-3" /> Sheet
+              </button>
+              <button type="button" onClick={addMergeSheet}
+                className="flex items-center gap-1 px-3 py-2 text-xs text-slate-400 hover:text-purple-600 hover:bg-purple-50 border-b-2 border-transparent shrink-0">
+                <GitMerge className="h-3 w-3" /> Merge
               </button>
             </div>
 
             {/* Active sheet editor */}
             {activeSheet && (
               <div className="border border-slate-200 border-t-0 rounded-b-lg p-4 bg-white max-h-[400px] overflow-y-auto">
-                <SheetEditor
-                  key={activeSheet.id}
-                  sheet={activeSheet}
-                  sheetIndex={activeSheetIdx}
-                  allSheets={sheets}
-                  rawColumns={rawColumns}
-                  agentId={agent.id}
-                  onChange={updateSheet}
-                />
+                {activeSheet.type === 'merge' ? (
+                  <MergeSheetEditor
+                    key={activeSheet.id}
+                    sheet={activeSheet}
+                    sheetIndex={activeSheetIdx}
+                    allSheets={sheets}
+                    availableRawSheets={availableRawSheets}
+                    onChange={updateSheet}
+                  />
+                ) : (
+                  <SheetEditor
+                    key={activeSheet.id}
+                    sheet={activeSheet}
+                    sheetIndex={activeSheetIdx}
+                    allSheets={sheets}
+                    rawColumns={rawColumns}
+                    availableRawSheets={availableRawSheets}
+                    agentId={agent.id}
+                    onChange={updateSheet}
+                  />
+                )}
               </div>
             )}
           </div>
