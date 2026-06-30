@@ -378,8 +378,14 @@ function applyMultiSheetWorkflow(sheets, fileBuffer, masterData = {}) {
     }
 
     // ── Normal sheet ──────────────────────────────────────────────────────────
-    // Use rawSheetName if set, otherwise fall back to first sheet (backward compat)
-    const sourceRows  = rawSheetMap[wfSheet.rawSheetName] || defaultRawRows;
+    // Source rows: from a previous sheet's output OR from a raw input sheet
+    let sourceRows;
+    if (wfSheet.sourceType === 'prev_sheet' && wfSheet.prevSheetName) {
+      const prevIdx = sheets.slice(0, sheetIdx).findIndex(s => s.name === wfSheet.prevSheetName);
+      sourceRows = prevIdx >= 0 && sheetResults[prevIdx] ? sheetResults[prevIdx] : defaultRawRows;
+    } else {
+      sourceRows = rawSheetMap[wfSheet.rawSheetName] || defaultRawRows;
+    }
     const rawRows     = applyFilters(sourceRows, wfSheet.filters || []);
     const orderedCols = [...(wfSheet.columns || [])].sort((a, b) => a.order - b.order);
 

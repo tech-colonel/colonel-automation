@@ -17,7 +17,18 @@ const makeSheetId = () => `sheet_${Date.now()}_${Math.random().toString(36).slic
 const makeColId  = () => `col_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
 function makeSheet(name, order) {
-  return { id: makeSheetId(), name, order, rawSheetName: null, columns: [], filters: [], groupBy: { enabled: false, columns: [], aggregations: {} } };
+  return { id: makeSheetId(), name, order, sourceType: 'raw', rawSheetName: null, prevSheetName: null, columns: [], filters: [], groupBy: { enabled: false, columns: [], aggregations: {} } };
+}
+
+// Returns the output column name-strings for any sheet type (normal or merge)
+function getPrevSheetOutputCols(s) {
+  if (s.type === 'merge') {
+    const seen = new Set();
+    return (s.mergeConfig?.sources || [])
+      .flatMap(src => src.columns || [])
+      .filter(col => { if (seen.has(col)) return false; seen.add(col); return true; });
+  }
+  return (s.columns || []).filter(c => c.label).map(c => c.label);
 }
 
 function makeMergeSheet(name, order) {
@@ -40,15 +51,15 @@ function makeMergeSheet(name, order) {
 function getFormulaColumns(sheetIndex, allSheets, upToColIndex) {
   const result = [];
 
-  // Previous sheets — all their columns
+  // Previous sheets — all their output columns (handles merge sheets too)
   for (let i = 0; i < sheetIndex; i++) {
-    const s = allSheets[i];
+    const s     = allSheets[i];
     const sName = s.name || `Sheet${i + 1}`;
-    s.columns.forEach(col => {
+    getPrevSheetOutputCols(s).forEach(label => {
       result.push({
-        key:        `${sName}.${col.label}`,
-        label:      `${sName} → ${col.label}`,
-        insertText: `{${sName}.${col.label}}`,
+        key:        `${sName}.${label}`,
+        label:      `${sName} → ${label}`,
+        insertText: `{${sName}.${label}}`,
         fromSheet:  sName
       });
     });
@@ -744,13 +755,16 @@ const GroupBySection = ({ sheet, onChange }) => {
 // ─── Sheet Editor Panel ────────────────────────────────────────────────────────
 
 const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, availableRawSheets = [], agentId, onChange }) => {
-  // Use columns from the selected raw sheet, fall back to first-sheet columns
   const effectiveRawCols = React.useMemo(() => {
+    if (sheet.sourceType === 'prev_sheet' && sheet.prevSheetName) {
+      const prev = allSheets.slice(0, sheetIndex).find(s => s.name === sheet.prevSheetName);
+      return prev ? getPrevSheetOutputCols(prev) : [];
+    }
     if (sheet.rawSheetName && availableRawSheets.length > 0) {
       return availableRawSheets.find(s => s.name === sheet.rawSheetName)?.columns || rawColumns;
     }
     return rawColumns;
-  }, [sheet.rawSheetName, availableRawSheets, rawColumns]);
+  }, [sheet.sourceType, sheet.prevSheetName, sheet.rawSheetName, availableRawSheets, rawColumns, allSheets, sheetIndex]);
   const [showAddComputed, setShowAddComputed] = useState(false);
   const [showAddExcel,    setShowAddExcel]    = useState(false);
   const [showAddMaster,   setShowAddMaster]   = useState(false);
@@ -769,12 +783,12 @@ const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, availableRawShe
       .map(c => c._prevSheetRef)
   );
 
-  // All columns from previous sheets, grouped by sheet name
-  const prevSheetGroups = allSheets.slice(0, sheetIndex).map(s => ({
-    sheetId:   s.id,
-    sheetName: s.name,
-    columns:   s.columns.filter(c => c.label) // skip unnamed cols
-  })).filter(g => g.columns.length > 0);
+  // All columns from previous sheets, including merge sheets
+  const prevSheetGroups = allSheets.slice(0, sheetIndex).map(s => {
+    const colLabels = getPrevSheetOutputCols(s);
+    const columns   = colLabels.map(lbl => ({ id: lbl, key: lbl, label: lbl, type: s.type === 'merge' ? 'source' : (s.columns.find(c => c.label === lbl)?.type || 'source') }));
+    return { sheetId: s.id, sheetName: s.name, isMerge: s.type === 'merge', columns };
+  }).filter(g => g.columns.length > 0);
 
   // Toggle a raw-file column in/out of this sheet
   const toggleSource = (rawKey) => {
@@ -912,22 +926,54 @@ const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, availableRawShe
 
   return (
     <div className="space-y-4">
-      {/* Raw sheet picker — only shown when sample file has multiple sheets */}
-      {availableRawSheets.length > 1 && (
-        <div>
-          <Label className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5 block">
-            Source Input Sheet
+      {/* Source rows picker */}
+      {(availableRawSheets.length > 1 || sheetIndex > 0) && (
+        <div className="space-y-2">
+          <Label className="text-xs font-semibold text-slate-600 uppercase tracking-wide block">
+            Source Rows From
           </Label>
-          <select
-            value={sheet.rawSheetName || ''}
-            onChange={e => onChange({ ...sheet, rawSheetName: e.target.value || null, columns: [] })}
-            className="w-full h-8 text-xs border border-slate-200 rounded-md px-2 focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
-          >
-            <option value="">— auto (first sheet) —</option>
-            {availableRawSheets.map(s => (
-              <option key={s.name} value={s.name}>{s.name} ({s.columns.length} cols)</option>
-            ))}
-          </select>
+          <div className="flex gap-2">
+            <button type="button"
+              onClick={() => onChange({ ...sheet, sourceType: 'raw', prevSheetName: null, columns: [] })}
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                (sheet.sourceType || 'raw') === 'raw' ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 text-slate-500 hover:border-indigo-300'
+              }`}>
+              Raw Input File
+            </button>
+            {sheetIndex > 0 && (
+              <button type="button"
+                onClick={() => onChange({ ...sheet, sourceType: 'prev_sheet', rawSheetName: null, columns: [] })}
+                className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                  sheet.sourceType === 'prev_sheet' ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 text-slate-500 hover:border-indigo-300'
+                }`}>
+                Previous Sheet Output
+              </button>
+            )}
+          </div>
+
+          {(sheet.sourceType || 'raw') === 'raw' && availableRawSheets.length > 1 && (
+            <select value={sheet.rawSheetName || ''}
+              onChange={e => onChange({ ...sheet, rawSheetName: e.target.value || null, columns: [] })}
+              className="w-full h-8 text-xs border border-slate-200 rounded-md px-2 focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white">
+              <option value="">— auto (first sheet) —</option>
+              {availableRawSheets.map(s => (
+                <option key={s.name} value={s.name}>{s.name} ({s.columns.length} cols)</option>
+              ))}
+            </select>
+          )}
+
+          {sheet.sourceType === 'prev_sheet' && (
+            <select value={sheet.prevSheetName || ''}
+              onChange={e => onChange({ ...sheet, prevSheetName: e.target.value || null, columns: [] })}
+              className="w-full h-8 text-xs border border-slate-200 rounded-md px-2 focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white">
+              <option value="">— select sheet —</option>
+              {allSheets.slice(0, sheetIndex).map(s => (
+                <option key={s.id} value={s.name}>
+                  {s.type === 'merge' ? '⊕ ' : ''}{s.name} ({getPrevSheetOutputCols(s).length} cols)
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       )}
 
@@ -942,7 +988,7 @@ const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, availableRawShe
       <div>
         <div className="flex items-center justify-between mb-1.5">
           <Label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
-            Source Columns from File
+            {sheet.sourceType === 'prev_sheet' ? `Columns from "${sheet.prevSheetName || '...'}"` : 'Source Columns from File'}
           </Label>
           <span className="text-xs text-slate-400">
             {selectedSourceKeys.size}/{effectiveRawCols.length} selected
@@ -951,7 +997,7 @@ const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, availableRawShe
 
         {effectiveRawCols.length === 0 ? (
           <p className="text-xs text-slate-400 py-2">
-            {availableRawSheets.length > 1 ? 'Select a source sheet above' : 'No file uploaded yet'}
+            {sheet.sourceType === 'prev_sheet' ? 'Select a previous sheet above' : availableRawSheets.length > 1 ? 'Select a source sheet above' : 'No file uploaded yet'}
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 max-h-36 overflow-y-auto border border-slate-200 rounded-lg p-2.5 bg-slate-50">
