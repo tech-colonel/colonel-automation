@@ -188,8 +188,6 @@ function resolveMasterLookup(col, row, masterData) {
 
 // ─── File Header Extraction (all sheets) ─────────────────────────────────────
 
-const normalizeColName = h => String(h || '').trim().replace(/\s+/g, ' ');
-
 function extractAllSheetsFromBuffer(buffer) {
   const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true, raw: false });
   return workbook.SheetNames.map(sheetName => {
@@ -197,7 +195,7 @@ function extractAllSheetsFromBuffer(buffer) {
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
     let columns = [];
     for (const row of rows) {
-      const headers = row.map(normalizeColName).filter(h => h !== '');
+      const headers = row.map(h => String(h || '').trim()).filter(h => h !== '');
       if (headers.length > 0) { columns = headers; break; }
     }
     return { name: sheetName, columns };
@@ -352,13 +350,12 @@ function buildFormulaReferenceSheet(sheets) {
 function applyMultiSheetWorkflow(sheets, fileBuffer, masterData = {}) {
   const workbook = XLSX.read(fileBuffer, { type: 'buffer', cellDates: true, raw: false });
 
-  // Normalize a column key: trim + collapse internal multiple spaces → single space
-  const normalizeKey = k => String(k).trim().replace(/\s+/g, ' ');
-
-  // Pre-load ALL raw input sheets — normalize keys to match extracted headers
+  // Pre-load ALL raw input sheets — normalize keys (trim whitespace) to match extracted headers
   const normalizeRow = (row) => {
     const out = {};
-    for (const [k, v] of Object.entries(row)) out[normalizeKey(k)] = v;
+    for (const [k, v] of Object.entries(row)) {
+      out[String(k).trim()] = v;
+    }
     return out;
   };
   const rawSheetMap = {};
@@ -411,8 +408,7 @@ function applyMultiSheetWorkflow(sheets, fileBuffer, masterData = {}) {
       }
       for (const col of orderedCols) {
         if (col.type === 'source') {
-          const k = normalizeKey(col.key);
-          row[col.label] = rawRow[k] !== undefined ? rawRow[k] : '';
+          row[col.label] = rawRow[col.key] !== undefined ? rawRow[col.key] : '';
         } else if (col.type === 'master_lookup') {
           row[col.label] = resolveMasterLookup(col, rawRow, masterData);
         }
