@@ -350,10 +350,17 @@ function buildFormulaReferenceSheet(sheets) {
 function applyMultiSheetWorkflow(sheets, fileBuffer, masterData = {}) {
   const workbook = XLSX.read(fileBuffer, { type: 'buffer', cellDates: true, raw: false });
 
-  // Pre-load ALL raw input sheets
+  // Pre-load ALL raw input sheets — normalize keys (trim whitespace) to match extracted headers
+  const normalizeRow = (row) => {
+    const out = {};
+    for (const [k, v] of Object.entries(row)) {
+      out[String(k).trim()] = v;
+    }
+    return out;
+  };
   const rawSheetMap = {};
   for (const sn of workbook.SheetNames) {
-    rawSheetMap[sn] = XLSX.utils.sheet_to_json(workbook.Sheets[sn], { defval: '' });
+    rawSheetMap[sn] = XLSX.utils.sheet_to_json(workbook.Sheets[sn], { defval: '' }).map(normalizeRow);
   }
   const defaultRawRows = rawSheetMap[workbook.SheetNames[0]] || [];
 
