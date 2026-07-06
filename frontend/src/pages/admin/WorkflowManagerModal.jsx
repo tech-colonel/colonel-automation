@@ -510,11 +510,14 @@ const FieldSuggestInput = ({ value, onChange, suggestions, placeholder, classNam
 // ─── Add Master Data Column Form ──────────────────────────────────────────────
 
 const AddMasterColumnForm = ({ rawColumns, agentId, onAdd, onCancel }) => {
+  const [mode,         setMode]         = useState('lookup'); // 'lookup' | 'validate'
   const [label,        setLabel]        = useState('');
   const [masterType,   setMasterType]   = useState('sku');
   const [lookupColumn, setLookupColumn] = useState(rawColumns[0] || '');
   const [matchField,   setMatchField]   = useState('');
   const [returnField,  setReturnField]  = useState('');
+  const [matchLabel,   setMatchLabel]   = useState('Matched');
+  const [noMatchLabel, setNoMatchLabel] = useState('Not Matched');
   const [schema,       setSchema]       = useState({ sku: [], ledger: [] });
   const [loadingSchema, setLoadingSchema] = useState(false);
 
@@ -530,21 +533,46 @@ const AddMasterColumnForm = ({ rawColumns, agentId, onAdd, onCancel }) => {
   const fields = masterType === 'sku' ? schema.sku : schema.ledger;
 
   const handleAdd = () => {
-    if (!label.trim())       { toast.error('Column name required'); return; }
-    if (!lookupColumn)       { toast.error('Select a lookup column'); return; }
-    if (!matchField.trim())  { toast.error('Match field is required'); return; }
-    if (!returnField.trim()) { toast.error('Return field is required'); return; }
-    onAdd({ label: label.trim(), type: 'master_lookup', masterType, lookupColumn, matchField: matchField.trim(), returnField: returnField.trim() });
+    if (!label.trim())      { toast.error('Column name required'); return; }
+    if (!lookupColumn)      { toast.error('Select a lookup column'); return; }
+    if (!matchField.trim()) { toast.error('Match field is required'); return; }
+    if (mode === 'lookup') {
+      if (!returnField.trim()) { toast.error('Return field is required'); return; }
+      onAdd({ label: label.trim(), type: 'master_lookup', masterType, lookupColumn, matchField: matchField.trim(), returnField: returnField.trim() });
+    } else {
+      onAdd({ label: label.trim(), type: 'master_validate', masterType, lookupColumn, matchField: matchField.trim(), matchLabel: matchLabel.trim() || 'Matched', noMatchLabel: noMatchLabel.trim() || 'Not Matched' });
+    }
   };
 
   return (
     <div className="border border-violet-200 bg-violet-50 rounded-lg p-3 space-y-2.5">
-      <p className="text-xs font-semibold text-violet-700 uppercase tracking-wide">New Master Data Column</p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-violet-700 uppercase tracking-wide">New Master Data Column</p>
+        {/* Mode toggle */}
+        <div className="flex rounded-md overflow-hidden border border-violet-300 text-xs">
+          <button type="button"
+            onClick={() => setMode('lookup')}
+            className={`px-2.5 py-1 font-medium transition-colors ${mode === 'lookup' ? 'bg-violet-600 text-white' : 'bg-white text-violet-600 hover:bg-violet-50'}`}>
+            Lookup
+          </button>
+          <button type="button"
+            onClick={() => setMode('validate')}
+            className={`px-2.5 py-1 font-medium transition-colors ${mode === 'validate' ? 'bg-teal-600 text-white' : 'bg-white text-teal-600 hover:bg-teal-50'}`}>
+            Validate
+          </button>
+        </div>
+      </div>
+
+      {mode === 'validate' && (
+        <p className="text-xs text-teal-700 bg-teal-50 border border-teal-200 rounded px-2 py-1">
+          Checks if the sheet column value exists in master data — returns a matched/not-matched label.
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-2">
         <div>
           <Label className="text-xs text-slate-600">Column Name *</Label>
-          <Input value={label} onChange={e => setLabel(e.target.value)} placeholder="e.g. Product Category" className="mt-1 h-8 text-sm" />
+          <Input value={label} onChange={e => setLabel(e.target.value)} placeholder="e.g. State Check" className="mt-1 h-8 text-sm" />
         </div>
         <div>
           <Label className="text-xs text-slate-600">Master Type *</Label>
@@ -560,7 +588,7 @@ const AddMasterColumnForm = ({ rawColumns, agentId, onAdd, onCancel }) => {
       </div>
 
       <div>
-        <Label className="text-xs text-slate-600">Lookup Column (from raw file) *</Label>
+        <Label className="text-xs text-slate-600">Sheet Column to Compare *</Label>
         <select
           value={lookupColumn}
           onChange={e => setLookupColumn(e.target.value)}
@@ -594,19 +622,20 @@ const AddMasterColumnForm = ({ rawColumns, agentId, onAdd, onCancel }) => {
         </p>
       )}
 
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <Label className="text-xs text-slate-600">Match Field (in master) *</Label>
-          <div className="mt-1">
-            <FieldSuggestInput
-              value={matchField}
-              onChange={setMatchField}
-              suggestions={fields}
-              placeholder="e.g. salesPortalSku"
-              className="h-8 text-xs"
-            />
-          </div>
+      <div>
+        <Label className="text-xs text-slate-600">Master Field to Compare Against *</Label>
+        <div className="mt-1">
+          <FieldSuggestInput
+            value={matchField}
+            onChange={setMatchField}
+            suggestions={fields}
+            placeholder="e.g. States"
+            className="h-8 text-xs"
+          />
         </div>
+      </div>
+
+      {mode === 'lookup' ? (
         <div>
           <Label className="text-xs text-slate-600">Return Field (from master) *</Label>
           <div className="mt-1">
@@ -614,21 +643,36 @@ const AddMasterColumnForm = ({ rawColumns, agentId, onAdd, onCancel }) => {
               value={returnField}
               onChange={setReturnField}
               suggestions={fields}
-              placeholder="e.g. category"
+              placeholder="e.g. Ledger"
               className="h-8 text-xs"
             />
           </div>
+          {matchField && returnField && lookupColumn && (
+            <p className="text-xs text-violet-600 bg-violet-100 rounded px-2 py-1 mt-1.5">
+              Row's <strong>{lookupColumn}</strong> → matches master's <strong>{matchField}</strong> → returns <strong>{returnField}</strong>
+            </p>
+          )}
         </div>
-      </div>
-
-      {matchField && returnField && lookupColumn && (
-        <p className="text-xs text-violet-600 bg-violet-100 rounded px-2 py-1">
-          Row's <strong>{lookupColumn}</strong> → matches master's <strong>{matchField}</strong> → returns <strong>{returnField}</strong>
-        </p>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <Label className="text-xs text-slate-600">If Found</Label>
+            <Input value={matchLabel} onChange={e => setMatchLabel(e.target.value)} placeholder="Matched" className="mt-1 h-8 text-xs" />
+          </div>
+          <div>
+            <Label className="text-xs text-slate-600">If Not Found</Label>
+            <Input value={noMatchLabel} onChange={e => setNoMatchLabel(e.target.value)} placeholder="Not Matched" className="mt-1 h-8 text-xs" />
+          </div>
+          {matchField && lookupColumn && (
+            <p className="col-span-2 text-xs text-teal-700 bg-teal-50 border border-teal-200 rounded px-2 py-1">
+              Checks if <strong>{lookupColumn}</strong> exists in master's <strong>{matchField}</strong> column → <strong>{matchLabel || 'Matched'}</strong> / <strong>{noMatchLabel || 'Not Matched'}</strong>
+            </p>
+          )}
+        </div>
       )}
 
       <div className="flex gap-2">
-        <Button size="sm" onClick={handleAdd} className="h-7 text-xs bg-violet-600 hover:bg-violet-700 text-white">
+        <Button size="sm" onClick={handleAdd} className={`h-7 text-xs text-white ${mode === 'validate' ? 'bg-teal-600 hover:bg-teal-700' : 'bg-violet-600 hover:bg-violet-700'}`}>
           <Check className="h-3 w-3 mr-1" /> Add
         </Button>
         <Button size="sm" variant="ghost" onClick={onCancel} className="h-7 text-xs">
@@ -915,7 +959,7 @@ const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, availableRawShe
   };
 
   const derivedCols = sheet.columns.filter(c => c.type === 'computed' || c.type === 'excel');
-  const masterCols  = sheet.columns.filter(c => c.type === 'master_lookup');
+  const masterCols  = sheet.columns.filter(c => c.type === 'master_lookup' || c.type === 'master_validate');
 
   // For the formula builder: up to end of current computed col list (or end for new)
   const formulaColumnsForNew = getFormulaColumns(sheetIndex, allSheets, sheet.columns.length);
@@ -1186,28 +1230,39 @@ const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, availableRawShe
 
         {masterCols.length === 0 && !showAddMaster && (
           <div className="text-xs text-slate-400 py-2 text-center border border-dashed border-slate-200 rounded-lg">
-            No master lookups. Click "Add Lookup Column" to map SKU/Ledger data.
+            No master lookups or validations. Click "Add Lookup Column" to map SKU/Ledger data.
           </div>
         )}
 
         <div className="space-y-1.5">
-          {masterCols.map(col => (
-            <div key={col.id} className="flex items-start justify-between gap-2 border border-violet-200 bg-violet-50 rounded-lg p-2.5">
-              <div className="min-w-0 flex-1">
-                <span className="text-sm font-medium text-violet-900">{col.label}</span>
-                <p className="text-xs text-violet-600 mt-0.5">
-                  {col.masterType === 'sku' ? 'SKU' : 'Ledger'} master · match <em>{col.lookupColumn}</em> → <em>{col.matchField}</em> · return <em>{col.returnField}</em>
-                </p>
+          {masterCols.map(col => {
+            const isValidate = col.type === 'master_validate';
+            return (
+              <div key={col.id} className={`flex items-start justify-between gap-2 border rounded-lg p-2.5 ${isValidate ? 'border-teal-200 bg-teal-50' : 'border-violet-200 bg-violet-50'}`}>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-sm font-medium ${isValidate ? 'text-teal-900' : 'text-violet-900'}`}>{col.label}</span>
+                    <span className={`text-[10px] font-bold px-1.5 py-px rounded ${isValidate ? 'bg-teal-200 text-teal-700' : 'bg-violet-200 text-violet-700'}`}>
+                      {isValidate ? 'VALIDATE' : 'LOOKUP'}
+                    </span>
+                  </div>
+                  <p className={`text-xs mt-0.5 ${isValidate ? 'text-teal-600' : 'text-violet-600'}`}>
+                    {col.masterType === 'sku' ? 'SKU' : 'Ledger'} master · compare <em>{col.lookupColumn}</em> → <em>{col.matchField}</em>
+                    {isValidate
+                      ? <> · <strong>{col.matchLabel || 'Matched'}</strong> / <strong>{col.noMatchLabel || 'Not Matched'}</strong></>
+                      : <> · return <em>{col.returnField}</em></>}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => deleteMasterCol(col.id)}
+                  className={`p-1 rounded hover:bg-red-100 shrink-0 ${isValidate ? 'text-teal-400' : 'text-violet-400'} hover:text-red-500`}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => deleteMasterCol(col.id)}
-                className="p-1 rounded hover:bg-red-100 text-violet-400 hover:text-red-500 shrink-0"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
+            );
+          })}
 
           {showAddMaster && (
             <AddMasterColumnForm
@@ -1240,12 +1295,14 @@ const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, availableRawShe
                       ? 'bg-slate-100 text-slate-600'
                       : col.type === 'master_lookup'
                         ? 'bg-violet-100 text-violet-700'
-                        : col.type === 'excel'
-                          ? 'bg-sky-100 text-sky-700'
-                          : 'bg-amber-100 text-amber-700'
+                        : col.type === 'master_validate'
+                          ? 'bg-teal-100 text-teal-700'
+                          : col.type === 'excel'
+                            ? 'bg-sky-100 text-sky-700'
+                            : 'bg-amber-100 text-amber-700'
                   }`}
                 >
-                  {col.type === 'computed' ? '✦ ' : col.type === 'excel' ? 'Σ ' : col.type === 'master_lookup' ? '⬡ ' : ''}{col.label}
+                  {col.type === 'computed' ? '✦ ' : col.type === 'excel' ? 'Σ ' : col.type === 'master_lookup' ? '⬡ ' : col.type === 'master_validate' ? '✓ ' : ''}{col.label}
                 </span>
               ))}
           </div>
@@ -1537,7 +1594,7 @@ const WorkflowBuilder = ({ agent, workflow, onSaved, onCancel }) => {
   const handleSave = async () => {
     if (!name.trim())       { toast.error('Workflow name is required'); return; }
     if (sheets.length === 0){ toast.error('Add at least one sheet');    return; }
-    const emptySheets = sheets.filter(s => s.type !== 'merge' && s.columns.length === 0);
+    const emptySheets = sheets.filter(s => s.type !== 'merge' && (s.columns || []).length === 0);
     if (emptySheets.length > 0) {
       toast.error(`Sheet "${emptySheets[0].name}" has no columns selected`);
       return;
@@ -1556,7 +1613,7 @@ const WorkflowBuilder = ({ agent, workflow, onSaved, onCancel }) => {
         sheets: sheets.map((s, i) => ({
           ...s,
           order: i,
-          columns: s.columns.map((c, j) => ({ ...c, order: j }))
+          columns: (s.columns || []).map((c, j) => ({ ...c, order: j }))
         }))
       };
       if (isEdit) {
@@ -1685,7 +1742,9 @@ const WorkflowBuilder = ({ agent, workflow, onSaved, onCancel }) => {
                         : <TableIcon className="h-3 w-3" />}
                       {sheet.name}
                       <span className={`ml-1 text-xs ${activeId === sheet.id ? 'text-indigo-400' : 'text-slate-300'}`}>
-                        ({sheet.columns.length})
+                        {sheet.type === 'merge'
+                          ? `(${sheet.mergeConfig?.mergeType || 'merge'})`
+                          : `(${(sheet.columns || []).length})`}
                       </span>
                       <span className="flex items-center gap-0.5 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <span

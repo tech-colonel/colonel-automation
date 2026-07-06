@@ -186,6 +186,26 @@ function resolveMasterLookup(col, row, masterData) {
   return match[returnField] !== undefined ? match[returnField] : '';
 }
 
+// ─── Master Data Validate ─────────────────────────────────────────────────────
+
+function resolveMasterValidate(col, row, masterData) {
+  const { masterType, lookupColumn, matchField, matchLabel = 'Matched', noMatchLabel = 'Not Matched' } = col;
+  const lookupValue = String(row[lookupColumn] || '').trim().toLowerCase();
+  if (!lookupValue) return noMatchLabel;
+
+  const master = masterType === 'sku'
+    ? (masterData.sku_master || [])
+    : (masterData.ledger_master || []);
+
+  const keyField = masterType === 'sku' ? (matchField || 'salesPortalSku') : (matchField || '');
+
+  const found = master.some(entry =>
+    String(entry[keyField] || '').trim().toLowerCase() === lookupValue
+  );
+
+  return found ? matchLabel : noMatchLabel;
+}
+
 // ─── File Header Extraction (all sheets) ─────────────────────────────────────
 
 function extractAllSheetsFromBuffer(buffer) {
@@ -330,6 +350,8 @@ function buildFormulaReferenceSheet(sheets) {
         case 'excel':         typeLabel = 'Excel Formula (cross-row)'; details = col.formula || ''; break;
         case 'master_lookup': typeLabel = 'Master Lookup';
           details = `Match column "${col.lookupColumn}" in ${col.masterType || 'sku'} master → return field "${col.returnField}"`; break;
+        case 'master_validate': typeLabel = 'Master Validate';
+          details = `Check "${col.lookupColumn}" exists in ${col.masterType || 'ledger'} master field "${col.matchField}" → "${col.matchLabel || 'Matched'}" / "${col.noMatchLabel || 'Not Matched'}"`; break;
         default:              typeLabel = col.type || ''; details = col.formula || '';
       }
       rows.push([sheet.name || '', col.label || '', typeLabel, details]);
@@ -411,6 +433,8 @@ function applyMultiSheetWorkflow(sheets, fileBuffer, masterData = {}) {
           row[col.label] = rawRow[col.key] !== undefined ? rawRow[col.key] : '';
         } else if (col.type === 'master_lookup') {
           row[col.label] = resolveMasterLookup(col, rawRow, masterData);
+        } else if (col.type === 'master_validate') {
+          row[col.label] = resolveMasterValidate(col, rawRow, masterData);
         }
       }
       return row;
