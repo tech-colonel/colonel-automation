@@ -190,18 +190,6 @@ function resolveMasterLookup(col, row, masterData) {
 
   const keyField = masterType === 'sku' ? (matchField || 'salesPortalSku') : (matchField || '');
 
-  // Debug: log first lookup attempt to diagnose field name / data issues
-  if (!resolveMasterLookup._debugged) {
-    resolveMasterLookup._debugged = true;
-    console.log(`[master_lookup DEBUG] masterType=${masterType} lookupColumn=${lookupColumn} matchField=${keyField} returnField=${returnField}`);
-    console.log(`[master_lookup DEBUG] master has ${master.length} entries`);
-    if (master.length > 0) {
-      console.log(`[master_lookup DEBUG] first entry keys:`, Object.keys(master[0]));
-      console.log(`[master_lookup DEBUG] first entry sample:`, JSON.stringify(master[0]).slice(0, 200));
-    }
-    console.log(`[master_lookup DEBUG] first lookupValue: "${lookupValue}" (from row["${lookupColumn}"]="${row[lookupColumn]}")`);
-  }
-
   const match = master.find(entry => {
     const entryVal = String(findMasterField(entry, keyField) ?? '').trim().toLowerCase();
     return entryVal === lookupValue;
