@@ -799,17 +799,24 @@ const GroupBySection = ({ sheet, onChange }) => {
 
 // ─── Sheet Editor Panel ────────────────────────────────────────────────────────
 
-const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, availableRawSheets = [], agentId, onChange }) => {
+const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, availableRawSheets = [], agentId, fileInputs = [], perFileSheets = {}, onChange }) => {
+  // When multiple file inputs exist, derive which file's sheets to show
+  const activeFileInputId = sheet.fileInputId || fileInputs[0]?.id || 'file_0';
+  const activeFileSheets  = fileInputs.length > 1
+    ? (perFileSheets[activeFileInputId] || [])
+    : availableRawSheets;
+
   const effectiveRawCols = React.useMemo(() => {
     if (sheet.sourceType === 'prev_sheet' && sheet.prevSheetName) {
       const prev = allSheets.slice(0, sheetIndex).find(s => s.name === sheet.prevSheetName);
       return prev ? getPrevSheetOutputCols(prev) : [];
     }
-    if (sheet.rawSheetName && availableRawSheets.length > 0) {
-      return availableRawSheets.find(s => s.name === sheet.rawSheetName)?.columns || rawColumns;
+    const sheetsToSearch = fileInputs.length > 1 ? activeFileSheets : availableRawSheets;
+    if (sheet.rawSheetName && sheetsToSearch.length > 0) {
+      return sheetsToSearch.find(s => s.name === sheet.rawSheetName)?.columns || rawColumns;
     }
-    return rawColumns;
-  }, [sheet.sourceType, sheet.prevSheetName, sheet.rawSheetName, availableRawSheets, rawColumns, allSheets, sheetIndex]);
+    return sheetsToSearch[0]?.columns || rawColumns;
+  }, [sheet.sourceType, sheet.prevSheetName, sheet.rawSheetName, activeFileSheets, availableRawSheets, rawColumns, allSheets, sheetIndex, fileInputs.length]);
   const [showAddComputed, setShowAddComputed] = useState(false);
   const [showAddExcel,    setShowAddExcel]    = useState(false);
   const [showAddMaster,   setShowAddMaster]   = useState(false);
@@ -971,8 +978,36 @@ const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, availableRawShe
 
   return (
     <div className="space-y-4">
+      {/* Source file selector (only when workflow has multiple file inputs) */}
+      {fileInputs.length > 1 && (
+        <div>
+          <Label className="text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-1.5">
+            Source File
+          </Label>
+          <div className="flex gap-2 flex-wrap">
+            {fileInputs.map((fi, i) => (
+              <button
+                key={fi.id}
+                type="button"
+                onClick={() => onChange({ ...sheet, fileInputId: fi.id, rawSheetName: null, columns: [] })}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+                  activeFileInputId === fi.id
+                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                    : 'border-slate-200 bg-white text-slate-500 hover:border-indigo-300'
+                }`}
+              >
+                <span className="w-4 h-4 rounded-full bg-indigo-200 text-indigo-800 text-[10px] font-bold flex items-center justify-center shrink-0">
+                  {i + 1}
+                </span>
+                {fi.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Source rows picker */}
-      {(availableRawSheets.length > 1 || sheetIndex > 0) && (
+      {(activeFileSheets.length > 1 || sheetIndex > 0) && (
         <div className="space-y-2">
           <Label className="text-xs font-semibold text-slate-600 uppercase tracking-wide block">
             Source Rows From
@@ -996,12 +1031,12 @@ const SheetEditor = ({ sheet, sheetIndex, allSheets, rawColumns, availableRawShe
             )}
           </div>
 
-          {(sheet.sourceType || 'raw') === 'raw' && availableRawSheets.length > 1 && (
+          {(sheet.sourceType || 'raw') === 'raw' && activeFileSheets.length > 1 && (
             <select value={sheet.rawSheetName || ''}
               onChange={e => onChange({ ...sheet, rawSheetName: e.target.value || null, columns: [] })}
               className="w-full h-8 text-xs border border-slate-200 rounded-md px-2 focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white">
               <option value="">— auto (first sheet) —</option>
-              {availableRawSheets.map(s => (
+              {activeFileSheets.map(s => (
                 <option key={s.name} value={s.name}>{s.name} ({s.columns.length} cols)</option>
               ))}
             </select>
@@ -1549,17 +1584,31 @@ const MergeSheetEditor = ({ sheet, sheetIndex, allSheets, availableRawSheets, on
   );
 };
 
+const makeFileInputId = (i) => `file_${i}`;
+
 // ─── Workflow Builder ──────────────────────────────────────────────────────────
 
 const WorkflowBuilder = ({ agent, workflow, onSaved, onCancel }) => {
   const isEdit = !!workflow;
 
-  const [step,              setStep]              = useState(isEdit ? 2 : 1);
-  const [sampleFile,        setSampleFile]        = useState(null);
-  const [extracting,        setExtracting]        = useState(false);
-  const [rawColumns,        setRawColumns]        = useState(workflow?.sample_columns || []);
-  const [availableRawSheets, setAvailableRawSheets] = useState([]);
-  const [sheets,       setSheets]       = useState(() => {
+  const [step,        setStep]        = useState(isEdit ? 2 : 1);
+  const [extracting,  setExtracting]  = useState(false);
+  const [rawColumns,  setRawColumns]  = useState(workflow?.sample_columns || []);
+
+  // fileInputs: [{id, label}] — one slot per required upload
+  const [fileInputs, setFileInputs] = useState(() => {
+    if (workflow?.fileInputs?.length) return workflow.fileInputs;
+    return [{ id: 'file_0', label: 'Input File' }];
+  });
+  // sampleFiles: { [fileInputId]: File }
+  const [sampleFiles, setSampleFiles] = useState({});
+  // perFileSheets: { [fileInputId]: [{name, columns}] }
+  const [perFileSheets, setPerFileSheets] = useState({});
+
+  // Flatten all sheets across all file inputs for backwards compat
+  const availableRawSheets = Object.values(perFileSheets).flat();
+
+  const [sheets, setSheets] = useState(() => {
     if (workflow?.sheets?.length) return workflow.sheets;
     return [makeSheet('Sheet 1', 0)];
   });
@@ -1612,20 +1661,46 @@ const WorkflowBuilder = ({ agent, workflow, onSaved, onCancel }) => {
     setSheets(prev => prev.map(s => s.id === updatedSheet.id ? updatedSheet : s));
   };
 
+  // ── File input management ──
+
+  const updateFileInputLabel = (id, label) =>
+    setFileInputs(prev => prev.map(fi => fi.id === id ? { ...fi, label } : fi));
+
+  const addFileInput = () => {
+    const newId = makeFileInputId(fileInputs.length);
+    setFileInputs(prev => [...prev, { id: newId, label: `File ${prev.length + 1}` }]);
+  };
+
+  const removeFileInput = (id) => {
+    if (fileInputs.length <= 1) return;
+    setFileInputs(prev => prev.filter(fi => fi.id !== id));
+    setSampleFiles(prev => { const n = { ...prev }; delete n[id]; return n; });
+    setPerFileSheets(prev => { const n = { ...prev }; delete n[id]; return n; });
+  };
+
   // ── Step 1: extract columns ──
 
   const handleExtract = async () => {
-    if (!sampleFile) { toast.error('Please select a file'); return; }
+    const missing = fileInputs.filter(fi => !sampleFiles[fi.id]);
+    if (missing.length > 0) {
+      toast.error(`Please select a file for: ${missing.map(fi => fi.label).join(', ')}`);
+      return;
+    }
     setExtracting(true);
     try {
-      const fd = new FormData();
-      fd.append('file', sampleFile);
-      const res = await api.post('/api/workflows/extract-columns', fd, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      const sheets = res.data.sheets || [];
-      setAvailableRawSheets(sheets);
-      setRawColumns(res.data.columns || sheets[0]?.columns || []);
+      const results = {};
+      for (const fi of fileInputs) {
+        const fd = new FormData();
+        fd.append('file', sampleFiles[fi.id]);
+        const res = await api.post('/api/workflows/extract-columns', fd, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        results[fi.id] = res.data.sheets || [];
+      }
+      setPerFileSheets(results);
+      // rawColumns = first file's first sheet (for backwards compat)
+      const firstSheets = results[fileInputs[0]?.id] || [];
+      setRawColumns(firstSheets[0]?.columns || []);
       setStep(2);
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to extract columns');
@@ -1655,6 +1730,7 @@ const WorkflowBuilder = ({ agent, workflow, onSaved, onCancel }) => {
         name: name.trim(),
         description: description.trim(),
         sample_columns: rawColumns,
+        fileInputs,
         sheets: sheets.map((s, i) => ({
           ...s,
           order: i,
@@ -1714,23 +1790,90 @@ const WorkflowBuilder = ({ agent, workflow, onSaved, onCancel }) => {
       {/* ── Step 1 ── */}
       {step === 1 && (
         <div className="space-y-4">
-          <div className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center">
-            <Upload className="h-8 w-8 text-slate-300 mx-auto mb-3" />
-            <p className="text-sm text-slate-600 mb-1">Upload a sample file to extract column headers</p>
-            <p className="text-xs text-slate-400 mb-4">Supports .xlsx, .xls, .csv</p>
-            <label className="inline-flex items-center gap-2 cursor-pointer rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-              <Upload className="h-4 w-4" />
-              {sampleFile ? sampleFile.name : 'Choose File'}
-              <input
-                type="file" accept=".xlsx,.xls,.csv" className="hidden"
-                onChange={e => setSampleFile(e.target.files[0] || null)}
-              />
-            </label>
+          {/* How many files */}
+          <div>
+            <Label className="text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-2">
+              How many input files does this workflow need?
+            </Label>
+            <div className="flex gap-2">
+              {[1, 2, 3, 4].map(n => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => {
+                    const cur = fileInputs.length;
+                    if (n > cur) {
+                      const adds = Array.from({ length: n - cur }, (_, i) => ({
+                        id: makeFileInputId(cur + i),
+                        label: `File ${cur + i + 1}`
+                      }));
+                      setFileInputs(prev => [...prev, ...adds]);
+                    } else if (n < cur) {
+                      setFileInputs(prev => prev.slice(0, n));
+                      setSampleFiles(prev => {
+                        const next = {};
+                        fileInputs.slice(0, n).forEach(fi => { if (prev[fi.id]) next[fi.id] = prev[fi.id]; });
+                        return next;
+                      });
+                    }
+                  }}
+                  className={`w-10 h-10 rounded-lg border-2 text-sm font-bold transition-all ${
+                    fileInputs.length === n
+                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                      : 'border-slate-200 bg-white text-slate-500 hover:border-indigo-300'
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {/* Per-file upload areas */}
+          <div className="space-y-3">
+            {fileInputs.map((fi, i) => (
+              <div key={fi.id} className="border border-slate-200 rounded-xl p-4 space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold shrink-0">
+                    {i + 1}
+                  </span>
+                  <input
+                    value={fi.label}
+                    onChange={e => updateFileInputLabel(fi.id, e.target.value)}
+                    className="flex-1 text-sm font-medium text-slate-800 border-none outline-none bg-transparent"
+                    placeholder={`File ${i + 1} label`}
+                  />
+                  {fileInputs.length > 1 && (
+                    <button type="button" onClick={() => removeFileInput(fi.id)}
+                      className="p-1 rounded hover:bg-red-100 text-slate-400 hover:text-red-500">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+                <label className="flex items-center gap-3 border border-dashed border-slate-200 rounded-lg px-4 py-3 cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/30 transition-all">
+                  <Upload className="h-4 w-4 text-slate-300 shrink-0" />
+                  <span className={`text-sm ${sampleFiles[fi.id] ? 'text-slate-800 font-medium' : 'text-slate-400'}`}>
+                    {sampleFiles[fi.id] ? sampleFiles[fi.id].name : 'Choose .xlsx / .xls / .csv'}
+                  </span>
+                  <input
+                    type="file" accept=".xlsx,.xls,.csv" className="hidden"
+                    onChange={e => setSampleFiles(prev => ({ ...prev, [fi.id]: e.target.files[0] || undefined }))}
+                  />
+                </label>
+              </div>
+            ))}
+          </div>
+
           <div className="flex gap-3">
             <Button variant="secondary" onClick={onCancel} className="flex-1">Cancel</Button>
-            <Button onClick={handleExtract} disabled={!sampleFile || extracting} className="flex-1">
-              {extracting ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Extracting...</> : 'Extract Columns →'}
+            <Button
+              onClick={handleExtract}
+              disabled={fileInputs.some(fi => !sampleFiles[fi.id]) || extracting}
+              className="flex-1"
+            >
+              {extracting
+                ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Extracting...</>
+                : `Extract Columns →`}
             </Button>
           </div>
         </div>
@@ -1854,6 +1997,8 @@ const WorkflowBuilder = ({ agent, workflow, onSaved, onCancel }) => {
                     rawColumns={rawColumns}
                     availableRawSheets={availableRawSheets}
                     agentId={agent.id}
+                    fileInputs={fileInputs}
+                    perFileSheets={perFileSheets}
                     onChange={updateSheet}
                   />
                 )}

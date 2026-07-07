@@ -410,10 +410,8 @@ function buildFormulaReferenceSheet(sheets) {
 
 // ─── Multi-Sheet Workflow Apply ───────────────────────────────────────────────
 
-function applyMultiSheetWorkflow(sheets, fileBuffer, masterData = {}) {
-  const workbook = XLSX.read(fileBuffer, { type: 'buffer', cellDates: true, raw: false });
-
-  // Pre-load ALL raw input sheets — normalize keys (trim whitespace) to match extracted headers
+// fileBufferOrMap: Buffer (legacy / single-file) OR { [fileInputId]: Buffer } (multi-file)
+function applyMultiSheetWorkflow(sheets, fileBufferOrMap, masterData = {}, fileInputs = []) {
   const normalizeRow = (row) => {
     const out = {};
     for (const [k, v] of Object.entries(row)) {
@@ -421,11 +419,30 @@ function applyMultiSheetWorkflow(sheets, fileBuffer, masterData = {}) {
     }
     return out;
   };
-  const rawSheetMap = {};
-  for (const sn of workbook.SheetNames) {
-    rawSheetMap[sn] = XLSX.utils.sheet_to_json(workbook.Sheets[sn], { defval: '' }).map(normalizeRow);
+
+  const buildRSM = (buf) => {
+    const wb = XLSX.read(buf, { type: 'buffer', cellDates: true, raw: false });
+    const rsm = {};
+    for (const sn of wb.SheetNames) {
+      rsm[sn] = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: '' }).map(normalizeRow);
+    }
+    return rsm;
+  };
+
+  // Build per-file rawSheetMaps keyed by fileInputId
+  const fileRSMs = {};
+  if (Buffer.isBuffer(fileBufferOrMap)) {
+    fileRSMs['file_0'] = buildRSM(fileBufferOrMap);
+  } else {
+    for (const [fid, buf] of Object.entries(fileBufferOrMap)) {
+      fileRSMs[fid] = buildRSM(buf);
+    }
   }
-  const defaultRawRows = rawSheetMap[workbook.SheetNames[0]] || [];
+
+  const defaultFileId = fileInputs[0]?.id || 'file_0';
+  const getFileRSM = (fid) =>
+    fileRSMs[fid] || fileRSMs[defaultFileId] || fileRSMs['file_0'] || Object.values(fileRSMs)[0] || {};
+
 
   const outBook      = XLSX.utils.book_new();
   const sheetResults = []; // sheetResults[i] = allRowsData (pre-grouped) for cross-sheet refs
@@ -434,6 +451,11 @@ function applyMultiSheetWorkflow(sheets, fileBuffer, masterData = {}) {
     const wfSheet       = sheets[sheetIdx];
     const safeSheetName = (wfSheet.name || `Sheet${sheetIdx + 1}`)
       .replace(/[:\\/?*[\]]/g, '').slice(0, 31);
+
+    // Resolve which file this sheet reads from
+    const sheetFileId = wfSheet.fileInputId || defaultFileId;
+    const rawSheetMap = getFileRSM(sheetFileId);
+    const sheetDefaultRows = Object.values(rawSheetMap)[0] || [];
 
     // ── Merge sheet ───────────────────────────────────────────────────────────
     if (wfSheet.type === 'merge') {
@@ -452,9 +474,9 @@ function applyMultiSheetWorkflow(sheets, fileBuffer, masterData = {}) {
     let sourceRows;
     if (wfSheet.sourceType === 'prev_sheet' && wfSheet.prevSheetName) {
       const prevIdx = sheets.slice(0, sheetIdx).findIndex(s => s.name === wfSheet.prevSheetName);
-      sourceRows = prevIdx >= 0 && sheetResults[prevIdx] ? sheetResults[prevIdx] : defaultRawRows;
+      sourceRows = prevIdx >= 0 && sheetResults[prevIdx] ? sheetResults[prevIdx] : sheetDefaultRows;
     } else {
-      sourceRows = rawSheetMap[wfSheet.rawSheetName] || defaultRawRows;
+      sourceRows = rawSheetMap[wfSheet.rawSheetName] || sheetDefaultRows;
     }
     const rawRows     = applyFilters(sourceRows, wfSheet.filters || []);
     const orderedCols = [...(wfSheet.columns || [])].sort((a, b) => a.order - b.order);
@@ -577,6 +599,13 @@ async function scanMasterSchema(agentId) {
 
 // ─── Controllers ──────────────────────────────────────────────────────────────
 
+const normalizeWorkflow = (wf) => {
+  const data = wf.toJSON ? wf.toJSON() : { ...wf };
+  data.fileInputs = data.file_inputs || [];
+  delete data.file_inputs;
+  return data;
+};
+
 const getWorkflows = async (req, res, next) => {
   try {
     const { agentId } = req.params;
@@ -584,7 +613,7 @@ const getWorkflows = async (req, res, next) => {
       where: { agent_id: agentId },
       order: [['createdAt', 'ASC']]
     });
-    res.json(workflows);
+    res.json(workflows.map(normalizeWorkflow));
   } catch (error) {
     next(error);
   }
@@ -595,7 +624,7 @@ const getWorkflow = async (req, res, next) => {
     const { workflowId } = req.params;
     const workflow = await AgentWorkflow.findByPk(workflowId);
     if (!workflow) return res.status(404).json({ error: 'Workflow not found' });
-    res.json(workflow);
+    res.json(normalizeWorkflow(workflow));
   } catch (error) {
     next(error);
   }
@@ -604,7 +633,7 @@ const getWorkflow = async (req, res, next) => {
 const createWorkflow = async (req, res, next) => {
   try {
     const { agentId } = req.params;
-    const { name, description, sample_columns, sheets } = req.body;
+    const { name, description, sample_columns, sheets, fileInputs } = req.body;
 
     const agent = await Agent.findByPk(agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
@@ -617,6 +646,7 @@ const createWorkflow = async (req, res, next) => {
       description:    description || '',
       sample_columns: sample_columns || [],
       sheets:         sheets || [],
+      file_inputs:    fileInputs || [],
       columns:        []
     });
 
@@ -629,7 +659,7 @@ const createWorkflow = async (req, res, next) => {
 const updateWorkflow = async (req, res, next) => {
   try {
     const { workflowId } = req.params;
-    const { name, description, sample_columns, sheets } = req.body;
+    const { name, description, sample_columns, sheets, fileInputs } = req.body;
 
     const workflow = await AgentWorkflow.findByPk(workflowId);
     if (!workflow) return res.status(404).json({ error: 'Workflow not found' });
@@ -638,7 +668,8 @@ const updateWorkflow = async (req, res, next) => {
       ...(name           !== undefined && { name: name.trim() }),
       ...(description    !== undefined && { description }),
       ...(sample_columns !== undefined && { sample_columns }),
-      ...(sheets         !== undefined && { sheets })
+      ...(sheets         !== undefined && { sheets }),
+      ...(fileInputs     !== undefined && { file_inputs: fileInputs })
     });
 
     res.json({ message: 'Workflow updated', workflow });
@@ -675,14 +706,36 @@ const extractColumns = [
 ];
 
 const applyWorkflow = [
-  upload.single('file'),
+  upload.any(),
   async (req, res, next) => {
     try {
       const { workflowId } = req.params;
-      if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-
       const workflow = await AgentWorkflow.findByPk(workflowId);
       if (!workflow) return res.status(404).json({ error: 'Workflow not found' });
+
+      const fileInputs = workflow.file_inputs || [];
+      const allFiles   = req.files || [];
+
+      // Build file buffer map: { [fileInputId]: Buffer }
+      // Single-file (legacy): field name 'file' → maps to first fileInput id or 'file_0'
+      // Multi-file: field names 'file_0', 'file_1', ... → mapped by index to fileInputs[i].id
+      let fileBufferOrMap;
+      if (fileInputs.length <= 1) {
+        const singleFile = allFiles.find(f => f.fieldname === 'file' || f.fieldname === 'file_0');
+        if (!singleFile) return res.status(400).json({ error: 'No file uploaded' });
+        fileBufferOrMap = singleFile.buffer;
+      } else {
+        fileBufferOrMap = {};
+        const missing = [];
+        fileInputs.forEach((fi, i) => {
+          const f = allFiles.find(f => f.fieldname === `file_${i}`);
+          if (f) fileBufferOrMap[fi.id] = f.buffer;
+          else   missing.push(fi.label || `File ${i + 1}`);
+        });
+        if (missing.length > 0) {
+          return res.status(400).json({ error: `Missing required files: ${missing.join(', ')}` });
+        }
+      }
 
       // Fetch master data if brand/agent context provided
       const brandId = req.body.brandId;
@@ -691,9 +744,10 @@ const applyWorkflow = [
 
       let outputBuffer;
       if (workflow.sheets && workflow.sheets.length > 0) {
-        outputBuffer = applyMultiSheetWorkflow(workflow.sheets, req.file.buffer, masterData);
+        outputBuffer = applyMultiSheetWorkflow(workflow.sheets, fileBufferOrMap, masterData, fileInputs);
       } else if (workflow.columns && workflow.columns.length > 0) {
-        outputBuffer = applyLegacyWorkflow(workflow.columns, req.file.buffer);
+        const singleBuf = Buffer.isBuffer(fileBufferOrMap) ? fileBufferOrMap : Object.values(fileBufferOrMap)[0];
+        outputBuffer = applyLegacyWorkflow(workflow.columns, singleBuf);
       } else {
         return res.status(400).json({ error: 'Workflow has no sheets defined' });
       }
