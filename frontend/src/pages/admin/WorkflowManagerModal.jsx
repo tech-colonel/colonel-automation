@@ -1795,37 +1795,23 @@ const WorkflowBuilder = ({ agent, workflow, onSaved, onCancel }) => {
             <Label className="text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-2">
               How many input files does this workflow need?
             </Label>
-            <div className="flex gap-2">
-              {[1, 2, 3, 4].map(n => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => {
-                    const cur = fileInputs.length;
-                    if (n > cur) {
-                      const adds = Array.from({ length: n - cur }, (_, i) => ({
-                        id: makeFileInputId(cur + i),
-                        label: `File ${cur + i + 1}`
-                      }));
-                      setFileInputs(prev => [...prev, ...adds]);
-                    } else if (n < cur) {
-                      setFileInputs(prev => prev.slice(0, n));
-                      setSampleFiles(prev => {
-                        const next = {};
-                        fileInputs.slice(0, n).forEach(fi => { if (prev[fi.id]) next[fi.id] = prev[fi.id]; });
-                        return next;
-                      });
-                    }
-                  }}
-                  className={`w-10 h-10 rounded-lg border-2 text-sm font-bold transition-all ${
-                    fileInputs.length === n
-                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                      : 'border-slate-200 bg-white text-slate-500 hover:border-indigo-300'
-                  }`}
-                >
-                  {n}
-                </button>
-              ))}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => removeFileInput(fileInputs[fileInputs.length - 1]?.id)}
+                disabled={fileInputs.length <= 1}
+                className="w-8 h-8 rounded-lg border border-slate-200 bg-white text-slate-500 font-bold text-lg hover:border-indigo-300 hover:text-indigo-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center justify-center"
+              >
+                −
+              </button>
+              <span className="w-8 text-center text-sm font-bold text-slate-800">{fileInputs.length}</span>
+              <button
+                type="button"
+                onClick={addFileInput}
+                className="w-8 h-8 rounded-lg border border-slate-200 bg-white text-slate-500 font-bold text-lg hover:border-indigo-300 hover:text-indigo-600 transition-all flex items-center justify-center"
+              >
+                +
+              </button>
             </div>
           </div>
 
