@@ -164,6 +164,19 @@ function applyFilters(rows, filters) {
   return rows.filter(row => filters.every(f => testFilter(row, f)));
 }
 
+// ─── Master Field Resolver ─────────────────────────────────────────────────────
+// Matches a field name against an object key using: exact match first, then
+// case-insensitive + collapsed-whitespace/underscore/dash fallback.
+// This handles "salesPortalSku" matching "Sales Portal SKU" and vice versa.
+
+function findMasterField(obj, fieldName) {
+  if (!fieldName) return undefined;
+  if (fieldName in obj) return obj[fieldName];
+  const norm = fieldName.trim().toLowerCase().replace(/[\s_-]+/g, '');
+  const key = Object.keys(obj).find(k => k.trim().toLowerCase().replace(/[\s_-]+/g, '') === norm);
+  return key !== undefined ? obj[key] : undefined;
+}
+
 // ─── Master Data Lookup ───────────────────────────────────────────────────────
 
 function resolveMasterLookup(col, row, masterData) {
@@ -177,13 +190,26 @@ function resolveMasterLookup(col, row, masterData) {
 
   const keyField = masterType === 'sku' ? (matchField || 'salesPortalSku') : (matchField || '');
 
+  // Debug: log first lookup attempt to diagnose field name / data issues
+  if (!resolveMasterLookup._debugged) {
+    resolveMasterLookup._debugged = true;
+    console.log(`[master_lookup DEBUG] masterType=${masterType} lookupColumn=${lookupColumn} matchField=${keyField} returnField=${returnField}`);
+    console.log(`[master_lookup DEBUG] master has ${master.length} entries`);
+    if (master.length > 0) {
+      console.log(`[master_lookup DEBUG] first entry keys:`, Object.keys(master[0]));
+      console.log(`[master_lookup DEBUG] first entry sample:`, JSON.stringify(master[0]).slice(0, 200));
+    }
+    console.log(`[master_lookup DEBUG] first lookupValue: "${lookupValue}" (from row["${lookupColumn}"]="${row[lookupColumn]}")`);
+  }
+
   const match = master.find(entry => {
-    const entryVal = String(entry[keyField] || '').trim().toLowerCase();
+    const entryVal = String(findMasterField(entry, keyField) ?? '').trim().toLowerCase();
     return entryVal === lookupValue;
   });
 
   if (!match) return '';
-  return match[returnField] !== undefined ? match[returnField] : '';
+  const val = findMasterField(match, returnField);
+  return val !== undefined ? val : '';
 }
 
 // ─── Master Data Validate ─────────────────────────────────────────────────────
@@ -200,7 +226,7 @@ function resolveMasterValidate(col, row, masterData) {
   const keyField = masterType === 'sku' ? (matchField || 'salesPortalSku') : (matchField || '');
 
   const found = master.some(entry =>
-    String(entry[keyField] || '').trim().toLowerCase() === lookupValue
+    String(findMasterField(entry, keyField) ?? '').trim().toLowerCase() === lookupValue
   );
 
   return found ? matchLabel : noMatchLabel;
@@ -303,7 +329,34 @@ function applyMerge(mergeConfig, rawSheetMap, sheetResults, wfSheets) {
     }));
   }
 
-  // join (default)
+  // join — N-source sequential left join using a common key column
+  const commonKey = mergeConfig.commonJoinKey;
+  if (commonKey) {
+    if (sources.length === 0) return [];
+    // Seed result with source A's selected columns, always keeping the join key
+    let resultRows = getSourceRows(sources[0]).map(row => {
+      const picked = pickCols(row, sources[0].columns);
+      if (!(commonKey in picked)) picked[commonKey] = row[commonKey] ?? '';
+      return picked;
+    });
+    // Join each subsequent source onto the running result
+    for (let i = 1; i < sources.length; i++) {
+      const src = sources[i];
+      const rightRows = getSourceRows(src);
+      const rightMap = new Map();
+      for (const row of rightRows) {
+        const k = cmp(row[commonKey]);
+        if (!rightMap.has(k)) rightMap.set(k, row);
+      }
+      resultRows = resultRows.map(leftRow => ({
+        ...leftRow,
+        ...pickCols(rightMap.get(cmp(leftRow[commonKey])) || {}, src.columns),
+      }));
+    }
+    return resultRows;
+  }
+
+  // Legacy: 2-source join with per-source joinKey (backward compat)
   const [srcA, srcB] = sources;
   if (!srcA || !srcB) return [];
   const rowsA = getSourceRows(srcA);

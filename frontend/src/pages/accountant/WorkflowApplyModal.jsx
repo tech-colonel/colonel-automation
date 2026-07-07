@@ -163,13 +163,15 @@ const ApplyStep = ({ workflow, agentId, brandId, onBack, onClose }) => {
       <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
         <div className="flex items-center justify-between">
           <p className="font-semibold text-sm text-indigo-800">{workflow.name}</p>
-          <button
-            type="button"
-            onClick={onBack}
-            className="text-xs text-indigo-500 hover:text-indigo-700 underline underline-offset-2"
-          >
-            Change
-          </button>
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="text-xs text-indigo-500 hover:text-indigo-700 underline underline-offset-2"
+            >
+              Change
+            </button>
+          )}
         </div>
         {workflow.description && (
           <p className="text-xs text-indigo-500 mt-0.5">{workflow.description}</p>
@@ -262,12 +264,13 @@ const ApplyStep = ({ workflow, agentId, brandId, onBack, onClose }) => {
 
 // ─── Main Modal ────────────────────────────────────────────────────────────────
 
-const WorkflowApplyModal = ({ agentId, brandId, open, onClose }) => {
-  const [selectedWorkflow, setSelectedWorkflow] = useState(null);
+// initialWorkflow: if provided, skips the selector and goes straight to ApplyStep
+const WorkflowApplyModal = ({ agentId, brandId, open, onClose, initialWorkflow = null }) => {
+  const [selectedWorkflow, setSelectedWorkflow] = useState(initialWorkflow);
 
   useEffect(() => {
-    if (open) setSelectedWorkflow(null);
-  }, [open]);
+    if (open) setSelectedWorkflow(initialWorkflow || null);
+  }, [open, initialWorkflow]);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -291,7 +294,7 @@ const WorkflowApplyModal = ({ agentId, brandId, open, onClose }) => {
             workflow={selectedWorkflow}
             agentId={agentId}
             brandId={brandId}
-            onBack={() => setSelectedWorkflow(null)}
+            onBack={initialWorkflow ? null : () => setSelectedWorkflow(null)}
             onClose={onClose}
           />
         )}
