@@ -73,6 +73,10 @@ const Agent = masterSequelize.define('Agent', {
   columns: {
     type: DataTypes.JSONB,
     defaultValue: []
+  },
+  agentType: {
+    type: DataTypes.STRING,
+    allowNull: true
   }
 }, {
   tableName: 'agents',

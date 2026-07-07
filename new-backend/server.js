@@ -33,7 +33,7 @@ const start = async () => {
     console.log('[MASTER DB] Connection established.');
 
     // 2. Sync Master Models
-    await masterSequelize.sync({ alter: false });
+    await masterSequelize.sync({ alter: true });
     console.log('[MASTER DB] Models synchronized.');
 
     // 3. Start Express Server

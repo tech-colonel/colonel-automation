@@ -157,18 +157,23 @@ const AgentWorkspace = () => {
     try {
       const response = await api.get(`/api/agents`);
       const currentAgent = response.data.find(a => a.id.toString() === agentId.toString());
-      if (currentAgent?.name?.toLowerCase().includes('amazon')) return 'amazon';
-      if (currentAgent?.name?.toLowerCase().includes('flipkart')) return 'flipkart';
-      if (currentAgent?.name?.toLowerCase().includes('myntra')) return 'myntra';
-      if (currentAgent?.name?.toLowerCase().includes('blinkit')) return 'blinkit';
-      if (currentAgent?.name?.toLowerCase().includes('zepto')) return 'zepto';
-      if (currentAgent?.name?.toLowerCase().includes('firstcry')) return 'firstcry';
-      if (currentAgent?.name?.toLowerCase().includes('jiomart')) return 'jiomart';
-      if (currentAgent?.name?.toLowerCase().includes('shopify')) return 'shopify';
-      if (currentAgent?.name?.toLowerCase().includes('total-sales')) return 'total-sales-analyzer';
-      if (currentAgent?.name?.toLowerCase().includes('mirrow')) return 'mirrow';
-      if (currentAgent?.name?.toLowerCase().includes('cread')) return 'cread';
-      if (currentAgent?.name?.toLowerCase().includes('limeroad')) return 'limeroad';
+      // Use explicit agentType field if set — avoids name-based misdetection
+      if (currentAgent?.agentType) return currentAgent.agentType;
+      // Fallback: name-based detection
+      const name = currentAgent?.name?.toLowerCase() || '';
+      if (name.includes('amazon')) return 'amazon';
+      if (name.includes('flipkart')) return 'flipkart';
+      if (name.includes('myntra')) return 'myntra';
+      if (name.includes('blinkit')) return 'blinkit';
+      if (name.includes('zepto')) return 'zepto';
+      if (name.includes('firstcry')) return 'firstcry';
+      if (name.includes('jiomart')) return 'jiomart';
+      if (name.includes('cread')) return 'cread';
+      if (name.includes('limeroad')) return 'limeroad';
+      if (name.includes('mirrow')) return 'mirrow';
+      if (name.includes('nykaa')) return 'nykaa';
+      if (name.includes('total-sales')) return 'total-sales-analyzer';
+      if (name.includes('shopify')) return 'shopify';
       return 'amazon';
     } catch (error) {
       return 'amazon';

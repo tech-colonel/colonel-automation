@@ -394,7 +394,7 @@ const AgentsPage = () => {
   const [loadingAgents, setLoadingAgents] = useState(true);
   const [loadingWf, setLoadingWf]   = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [formData, setFormData]     = useState({ name: '', description: '', useBasicColumns: true });
+  const [formData, setFormData]     = useState({ name: '', description: '', agentType: '', useBasicColumns: true });
   const [deleteTarget, setDeleteTarget]     = useState(null);
   const [manageTarget, setManageTarget]     = useState(null);
   const [workflowTarget, setWorkflowTarget] = useState(null); // { agent } — full-page builder
@@ -458,11 +458,12 @@ const AgentsPage = () => {
       await api.post('/api/agents', {
         name: formData.name,
         description: formData.description,
+        agentType: formData.agentType || null,
         columns: formData.useBasicColumns ? basicColumns : defaultColumns
       });
       toast.success('Agent created');
       setShowCreateModal(false);
-      setFormData({ name: '', description: '', useBasicColumns: true });
+      setFormData({ name: '', description: '', agentType: '', useBasicColumns: true });
       fetchAgents();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to create agent');
@@ -638,6 +639,28 @@ const AgentsPage = () => {
               <Input id="description" value={formData.description}
                 onChange={e => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Optional" data-testid="agent-description-input" />
+            </div>
+            <div>
+              <Label htmlFor="agentType">Agent Type *</Label>
+              <select id="agentType" value={formData.agentType}
+                onChange={e => setFormData({ ...formData, agentType: e.target.value })}
+                required
+                className="w-full mt-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="">— Select agent type —</option>
+                <option value="amazon">Amazon</option>
+                <option value="flipkart">Flipkart</option>
+                <option value="myntra">Myntra</option>
+                <option value="blinkit">Blinkit</option>
+                <option value="zepto">Zepto</option>
+                <option value="firstcry">FirstCry</option>
+                <option value="jiomart">JioMart</option>
+                <option value="shopify">Shopify</option>
+                <option value="mirrow">Mirrow</option>
+                <option value="cread">Cread</option>
+                <option value="limeroad">LimeRoad</option>
+                <option value="nykaa">Nykaa</option>
+                <option value="total-sales-analyzer">Total Sales Analyzer</option>
+              </select>
             </div>
             <div className="flex items-center space-x-2 pt-2">
               <input type="checkbox" id="useBasicColumns" checked={formData.useBasicColumns}

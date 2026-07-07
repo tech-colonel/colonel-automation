@@ -7,7 +7,7 @@ const { getBrandAgentModel, getDynamicModel } = require('../models/brand');
  */
 const createAgent = async (req, res, next) => {
   try {
-    const { name, description, columns } = req.body;
+    const { name, description, columns, agentType } = req.body;
 
     const existingAgent = await Agent.findOne({ where: { name } });
     if (existingAgent) {
@@ -17,7 +17,8 @@ const createAgent = async (req, res, next) => {
     const agent = await Agent.create({
       name,
       description,
-      columns
+      columns,
+      agentType: agentType || null
     });
 
     res.status(201).json({
