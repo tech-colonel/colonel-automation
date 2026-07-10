@@ -55,6 +55,16 @@ async function amazonB2BProcessor(
     if (!quantityColumn) throw new Error('Quantity column not found');
     if (!sellerGstinColumn) throw new Error('Seller Gstin column not found');
 
+    // Prefer Bill From/To State for the IGST/CGST/SGST split; fall back to
+    // Ship From/To State when the report doesn't carry Bill columns.
+    const findHeader = name => headers.find(h => h.toLowerCase().trim() === name);
+
+    const fromStateCol = findHeader('bill from state') || findHeader('ship from state');
+    const toStateCol = findHeader('bill to state') || findHeader('ship to state');
+
+    if (!fromStateCol) throw new Error('Bill From State / Ship From State column not found');
+    if (!toStateCol) throw new Error('Bill To State / Ship To State column not found');
+
     // ================================
     // STEP 3: FILTER Shipment & Refund
     // ================================
@@ -206,9 +216,9 @@ async function amazonB2BProcessor(
     // Builds the "-{monthNumber}" or "-{stateNumber}-{monthNumber}" invoice suffix
     const getInvoiceSuffix = (row) => {
       if (!multiStateSale) return monthNumber;
-      const stateCode = getStateCodeFromName(row['Bill From State']);
+      const stateCode = getStateCodeFromName(row[fromStateCol]);
       if (!stateCode) {
-        console.warn(`[Amazon B2B] Multi-state sale: no GST state code match for Bill From State "${row['Bill From State']}"`);
+        console.warn(`[Amazon B2B] Multi-state sale: no GST state code match for "${fromStateCol}" value "${row[fromStateCol]}"`);
         return monthNumber;
       }
       return `${stateCode}-${monthNumber}`;
@@ -234,12 +244,12 @@ async function amazonB2BProcessor(
       // Map each row
       filteredRows.forEach(row => {
 
-        const billFrom = (row["Bill From State"] || "")
+        const billFrom = (row[fromStateCol] || "")
           .toString()
           .trim()
           .toLowerCase();
 
-        const billTo = (row["Bill To State"] || "")
+        const billTo = (row[toStateCol] || "")
           .toString()
           .trim()
           .toLowerCase();
@@ -270,12 +280,12 @@ async function amazonB2BProcessor(
 
       filteredRows.forEach(row => {
 
-        const billFrom = (row["Bill From State"] || "")
+        const billFrom = (row[fromStateCol] || "")
           .toString()
           .trim()
           .toLowerCase();
 
-        const billTo = (row["Bill To State"] || "")
+        const billTo = (row[toStateCol] || "")
           .toString()
           .trim()
           .toLowerCase();
@@ -384,7 +394,7 @@ async function amazonB2BProcessor(
         Number(row['Tax Exclusive Gross'] || 0) - shippingValue;
 
       const isIntraState =
-        row['Bill From State'] === row['Bill To State'];
+        row[fromStateCol] === row[toStateCol];
 
       row['Final Tax rate'] = finalTaxRate;
       row['Final Taxable Shipping Value'] = shippingValue;
@@ -466,8 +476,8 @@ async function amazonB2BProcessor(
       'Gift Wrap Promo Discount Basis',
       'Shipping Promo Discount Basis',
       'Tax Exclusive Gross',
-      'Bill From State',
-      'Bill To State',
+      fromStateCol,
+      toStateCol,
       'Tcs Cgst Amount',
       'Tcs Sgst Amount',
       'Tcs Igst Amount'
@@ -506,8 +516,8 @@ async function amazonB2BProcessor(
       const giftWrapPromoBasisCol = col('Gift Wrap Promo Discount Basis');
       const shipPromoBasisCol = col('Shipping Promo Discount Basis');
       const taxExclusiveCol = col('Tax Exclusive Gross');
-      const billFromCol = col('Bill From State');
-      const billToCol = col('Bill To State');
+      const billFromCol = col(fromStateCol);
+      const billToCol = col(toStateCol);
       const tcsCgstCol = col('Tcs Cgst Amount');
       const tcsSgstCol = col('Tcs Sgst Amount');
       const tcsIgstCol = col('Tcs Igst Amount');
