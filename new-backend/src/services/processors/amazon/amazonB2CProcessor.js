@@ -217,11 +217,11 @@ async function amazonB2CProcessor(
       // Map each row
       filteredRows.forEach(row => {
 
-        const shipState = row['Ship To State'];
+        const billState = row['Bill To State'];
 
-        if (shipState) {
+        if (billState) {
 
-          const lookupKey = shipState.toString().trim().toLowerCase();
+          const lookupKey = billState.toString().trim().toLowerCase();
 
           if (stateMap[lookupKey]) {
 
@@ -360,7 +360,7 @@ async function amazonB2CProcessor(
         Number(row['Tax Exclusive Gross'] || 0) - shippingValue;
 
       const isIntraState =
-        row['Ship From State'] === row['Ship To State'];
+        row['Bill From State'] === row['Bill To State'];
 
       row['Final Tax rate'] = finalTaxRate;
       row['Final Taxable Shipping Value'] = shippingValue;
@@ -442,8 +442,8 @@ async function amazonB2CProcessor(
       'Gift Wrap Promo Discount Basis',
       'Shipping Promo Discount Basis',
       'Tax Exclusive Gross',
-      'Ship From State',
-      'Ship To State',
+      'Bill From State',
+      'Bill To State',
       'Tcs Cgst Amount',
       'Tcs Sgst Amount',
       'Tcs Igst Amount'
@@ -482,8 +482,8 @@ async function amazonB2CProcessor(
       const giftWrapPromoBasisCol = col('Gift Wrap Promo Discount Basis');
       const shipPromoBasisCol = col('Shipping Promo Discount Basis');
       const taxExclusiveCol = col('Tax Exclusive Gross');
-      const shipFromCol = col('Ship From State');
-      const shipToCol = col('Ship To State');
+      const billFromCol = col('Bill From State');
+      const billToCol = col('Bill To State');
       const tcsCgstCol = col('Tcs Cgst Amount');
       const tcsSgstCol = col('Tcs Sgst Amount');
       const tcsIgstCol = col('Tcs Igst Amount');
@@ -505,32 +505,32 @@ async function amazonB2CProcessor(
 
       // 4️⃣ Final CGST Tax
       worksheet.getCell(`${finalCgstCol}${excelRowNumber}`).value = {
-        formula: `IF(${shipFromCol}${excelRowNumber}=${shipToCol}${excelRowNumber},${finalTaxableSalesCol}${excelRowNumber}*${cgstRateCol}${excelRowNumber},0)`
+        formula: `IF(${billFromCol}${excelRowNumber}=${billToCol}${excelRowNumber},${finalTaxableSalesCol}${excelRowNumber}*${cgstRateCol}${excelRowNumber},0)`
       };
 
       // 5️⃣ Final SGST Tax
       worksheet.getCell(`${finalSgstCol}${excelRowNumber}`).value = {
-        formula: `IF(${shipFromCol}${excelRowNumber}=${shipToCol}${excelRowNumber},${finalTaxableSalesCol}${excelRowNumber}*${sgstRateCol}${excelRowNumber},0)`
+        formula: `IF(${billFromCol}${excelRowNumber}=${billToCol}${excelRowNumber},${finalTaxableSalesCol}${excelRowNumber}*${sgstRateCol}${excelRowNumber},0)`
       };
 
       // 6️⃣ Final IGST Tax
       worksheet.getCell(`${finalIgstCol}${excelRowNumber}`).value = {
-        formula: `IF(${shipFromCol}${excelRowNumber}<>${shipToCol}${excelRowNumber},${finalTaxableSalesCol}${excelRowNumber}*${igstRateCol}${excelRowNumber},0)`
+        formula: `IF(${billFromCol}${excelRowNumber}<>${billToCol}${excelRowNumber},${finalTaxableSalesCol}${excelRowNumber}*${igstRateCol}${excelRowNumber},0)`
       };
 
       // 7️⃣ Final Shipping CGST
       worksheet.getCell(`${finalShipCgstCol}${excelRowNumber}`).value = {
-        formula: `IF(${shipFromCol}${excelRowNumber}=${shipToCol}${excelRowNumber},${finalTaxableShippingCol}${excelRowNumber}*${finalTaxRateCol}${excelRowNumber},0)`
+        formula: `IF(${billFromCol}${excelRowNumber}=${billToCol}${excelRowNumber},${finalTaxableShippingCol}${excelRowNumber}*${finalTaxRateCol}${excelRowNumber},0)`
       };
 
       // 8️⃣ Final Shipping SGST
       worksheet.getCell(`${finalShipSgstCol}${excelRowNumber}`).value = {
-        formula: `IF(${shipFromCol}${excelRowNumber}=${shipToCol}${excelRowNumber},${finalTaxableShippingCol}${excelRowNumber}*${finalTaxRateCol}${excelRowNumber},0)`
+        formula: `IF(${billFromCol}${excelRowNumber}=${billToCol}${excelRowNumber},${finalTaxableShippingCol}${excelRowNumber}*${finalTaxRateCol}${excelRowNumber},0)`
       };
 
       // 9️⃣ Final Shipping IGST
       worksheet.getCell(`${finalShipIgstCol}${excelRowNumber}`).value = {
-        formula: `IF(${shipFromCol}${excelRowNumber}<>${shipToCol}${excelRowNumber},${finalTaxableShippingCol}${excelRowNumber}*${finalTaxRateCol}${excelRowNumber},0)`
+        formula: `IF(${billFromCol}${excelRowNumber}<>${billToCol}${excelRowNumber},${finalTaxableShippingCol}${excelRowNumber}*${finalTaxRateCol}${excelRowNumber},0)`
       };
 
       // 🔟 Final Amount Receivable
