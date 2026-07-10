@@ -9,6 +9,7 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Badge } from '../../components/ui/badge';
+import { Checkbox } from '../../components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/modal';
 import api from '../../lib/api';
 import { toast } from 'sonner';
@@ -99,7 +100,8 @@ const AgentWorkspace = () => {
     rtoFile: null,
     rtFile: null,
     packedFile: null,
-    selling_state: ''
+    selling_state: '',
+    multi_state_sale: false
   });
 
   const sidebarItems = [
@@ -377,6 +379,9 @@ const AgentWorkspace = () => {
     data.append('inventory_type', formData.inventory_type);
     if (isZepto && formData.selling_state) {
       data.append('selling_state', formData.selling_state);
+    }
+    if (isAmazon) {
+      data.append('multi_state_sale', formData.multi_state_sale);
     }
 
     setIsGenerating(true);
@@ -1216,6 +1221,25 @@ const AgentWorkspace = () => {
                     <option value="Without">Without Inventory</option>
                   </select>
                 </div>
+
+                {isAmazon && (
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="multi-state-sale"
+                        checked={formData.multi_state_sale}
+                        onCheckedChange={(checked) => setFormData({ ...formData, multi_state_sale: checked === true })}
+                        data-testid="multi-state-sale-checkbox"
+                      />
+                      <Label htmlFor="multi-state-sale" className="cursor-pointer">
+                        Multi State Sale
+                      </Label>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-2">
+                      Adds the Bill From State's GST state number before the month suffix in the invoice number
+                    </p>
+                  </div>
+                )}
 
                 {isZepto && (
                   <div>

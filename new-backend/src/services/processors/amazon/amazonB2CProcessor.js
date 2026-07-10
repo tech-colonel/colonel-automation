@@ -1,5 +1,6 @@
 const XLSX = require('xlsx-js-style');
 const ExcelJS = require('exceljs');
+const { getStateCodeFromName } = require('../../../utils/gstStateCodes');
 
 async function amazonB2CProcessor(
   rawFileBuffer,
@@ -10,7 +11,8 @@ async function amazonB2CProcessor(
   stateConfigData,
   useInventory,
   formMonth,
-  formYear
+  formYear,
+  multiStateSale
 ) {
   try {
     if (!rawFileBuffer) {
@@ -197,6 +199,17 @@ async function amazonB2CProcessor(
     // STEP 4.4: MAP STATE CONFIG DATA
     // ================================
 
+    // Builds the "-{monthNumber}" or "-{stateNumber}-{monthNumber}" invoice suffix
+    const getInvoiceSuffix = (row) => {
+      if (!multiStateSale) return monthNumber;
+      const stateCode = getStateCodeFromName(row['Bill From State']);
+      if (!stateCode) {
+        console.warn(`[Amazon B2C] Multi-state sale: no GST state code match for Bill From State "${row['Bill From State']}"`);
+        return monthNumber;
+      }
+      return `${stateCode}-${monthNumber}`;
+    };
+
     if (Array.isArray(stateConfigData) && stateConfigData.length > 0) {
 
       // Create lookup map
@@ -230,7 +243,7 @@ async function amazonB2CProcessor(
             const baseInvoice = stateMap[lookupKey].invoice;
 
             if (baseInvoice) {
-              row['Final Invoice No.'] = `${baseInvoice}-${monthNumber}`;
+              row['Final Invoice No.'] = `${baseInvoice}-${getInvoiceSuffix(row)}`;
             } else {
               row['Final Invoice No.'] = null;
             }
