@@ -6,10 +6,11 @@ import { Label } from '../../components/ui/label';
 import { Badge } from '../../components/ui/badge';
 import {
   Plus, Trash2, Edit2, Loader2, GitBranch, Upload, ChevronLeft,
-  X, Check, TableIcon, PenLine, GitMerge, Layers
+  X, Check, TableIcon, PenLine, GitMerge, Layers, Sparkles
 } from 'lucide-react';
 import api from '../../lib/api';
 import { toast } from 'sonner';
+import WorkflowAIChatModal from './WorkflowAIChatModal';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1589,7 +1590,11 @@ const makeFileInputId = (i) => `file_${i}`;
 // ─── Workflow Builder ──────────────────────────────────────────────────────────
 
 const WorkflowBuilder = ({ agent, workflow, onSaved, onCancel }) => {
+  // `workflow` is truthy both for a genuine edit AND for an AI-generated draft handed
+  // off for review (which has no `id` yet) — isEdit only decides whether to hydrate
+  // state and skip to step 2; isPersisted decides POST vs PUT and the header/button text.
   const isEdit = !!workflow;
+  const isPersisted = !!workflow?.id;
 
   const [step,        setStep]        = useState(isEdit ? 2 : 1);
   const [extracting,  setExtracting]  = useState(false);
@@ -1737,7 +1742,7 @@ const WorkflowBuilder = ({ agent, workflow, onSaved, onCancel }) => {
           columns: (s.columns || []).map((c, j) => ({ ...c, order: j }))
         }))
       };
-      if (isEdit) {
+      if (isPersisted) {
         await api.put(`/api/workflows/${workflow.id}`, payload);
         toast.success('Workflow updated');
       } else {
@@ -1762,7 +1767,7 @@ const WorkflowBuilder = ({ agent, workflow, onSaved, onCancel }) => {
           </button>
           <div>
             <h3 className="font-semibold text-slate-900 text-sm">
-              {isEdit ? 'Edit Workflow' : 'New Workflow'} — {agent.name}
+              {isPersisted ? 'Edit Workflow' : 'New Workflow'} — {agent.name}
             </h3>
             <p className="text-xs text-slate-500">
               {step === 1 ? 'Step 1 of 2: Upload sample file' : 'Step 2 of 2: Define sheets & columns'}
@@ -1775,7 +1780,7 @@ const WorkflowBuilder = ({ agent, workflow, onSaved, onCancel }) => {
             <Button size="sm" onClick={handleSave} disabled={saving} className="h-8">
               {saving
                 ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Saving...</>
-                : isEdit ? 'Update Workflow' : 'Save Workflow'}
+                : isPersisted ? 'Update Workflow' : 'Save Workflow'}
             </Button>
           </div>
         )}
@@ -2006,6 +2011,7 @@ const WorkflowManagerModal = ({ agent, open, onClose, inline = false }) => {
   const [view,        setView]        = useState('list');
   const [editTarget,  setEditTarget]  = useState(null);
   const [deletingId,  setDeletingId]  = useState(null);
+  const [aiChatOpen,  setAiChatOpen]  = useState(false);
 
   useEffect(() => {
     if (!agent) return;
@@ -2054,9 +2060,14 @@ const WorkflowManagerModal = ({ agent, open, onClose, inline = false }) => {
             ? 'No workflows yet.'
             : `${workflows.length} workflow${workflows.length > 1 ? 's' : ''}`}
         </p>
-        <Button size="sm" onClick={() => { setEditTarget(null); setView('build'); }} className="h-8">
-          <Plus className="h-3.5 w-3.5 mr-1" /> Add Workflow
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="secondary" onClick={() => setAiChatOpen(true)} className="h-8">
+            <Sparkles className="h-3.5 w-3.5 mr-1" /> Create with AI
+          </Button>
+          <Button size="sm" onClick={() => { setEditTarget(null); setView('build'); }} className="h-8">
+            <Plus className="h-3.5 w-3.5 mr-1" /> Add Workflow
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -2150,20 +2161,36 @@ const WorkflowManagerModal = ({ agent, open, onClose, inline = false }) => {
 
   const innerContent = view === 'list' ? listView : buildView;
 
-  if (inline) return innerContent;
+  const aiChatModal = (
+    <WorkflowAIChatModal
+      agent={agent}
+      open={aiChatOpen}
+      onClose={() => setAiChatOpen(false)}
+      onHandoff={(draftObj) => {
+        setAiChatOpen(false);
+        setEditTarget(draftObj);
+        setView('build');
+      }}
+    />
+  );
+
+  if (inline) return (<>{innerContent}{aiChatModal}</>);
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent onClose={onClose} className="max-w-2xl max-h-[92vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <GitBranch className="h-5 w-5 text-indigo-600" />
-            Workflows — {agent?.name}
-          </DialogTitle>
-        </DialogHeader>
-        {innerContent}
-      </DialogContent>
-    </Dialog>
+    <>
+      <Dialog open={open} onOpenChange={onClose}>
+        <DialogContent onClose={onClose} className="max-w-2xl max-h-[92vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GitBranch className="h-5 w-5 text-indigo-600" />
+              Workflows — {agent?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {innerContent}
+        </DialogContent>
+      </Dialog>
+      {aiChatModal}
+    </>
   );
 };
 

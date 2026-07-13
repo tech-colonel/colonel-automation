@@ -61,6 +61,8 @@ async function amazonB2CProcessor(
 
     const fromStateCol = findHeader('bill from state') || findHeader('ship from state');
     const toStateCol = findHeader('bill to state') || findHeader('ship to state');
+    // Multi-state-sale invoice number suffix always maps off Ship To State
+    const shipToStateCol = findHeader('ship to state');
 
     if (!fromStateCol) throw new Error('Bill From State / Ship From State column not found');
     if (!toStateCol) throw new Error('Bill To State / Ship To State column not found');

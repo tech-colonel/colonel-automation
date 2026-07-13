@@ -799,5 +799,6 @@ module.exports = {
   extractColumns,
   applyWorkflow,
   downloadWorkflowOutput,
-  getMasterSchema
+  getMasterSchema,
+  extractAllSheetsFromBuffer
 };
