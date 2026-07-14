@@ -3,10 +3,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../componen
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
+import { Textarea } from '../../components/ui/textarea';
 import { Badge } from '../../components/ui/badge';
 import {
   Plus, Trash2, Edit2, Loader2, GitBranch, Upload, ChevronLeft,
-  X, Check, TableIcon, PenLine, GitMerge, Layers, Sparkles
+  X, Check, TableIcon, PenLine, GitMerge, Layers, Sparkles, FileText, Download
 } from 'lucide-react';
 import api from '../../lib/api';
 import { toast } from 'sonner';
@@ -1622,6 +1623,7 @@ const WorkflowBuilder = ({ agent, workflow, onSaved, onCancel }) => {
   );
   const [name,         setName]         = useState(workflow?.name || '');
   const [description,  setDescription]  = useState(workflow?.description || '');
+  const [sop,          setSop]          = useState(workflow?.sop || '');
   const [saving,       setSaving]       = useState(false);
   const [renamingId,   setRenamingId]   = useState(null);
   const [renameValue,  setRenameValue]  = useState('');
@@ -1734,6 +1736,7 @@ const WorkflowBuilder = ({ agent, workflow, onSaved, onCancel }) => {
       const payload = {
         name: name.trim(),
         description: description.trim(),
+        sop: sop.trim(),
         sample_columns: rawColumns,
         fileInputs,
         sheets: sheets.map((s, i) => ({
@@ -1895,6 +1898,16 @@ const WorkflowBuilder = ({ agent, workflow, onSaved, onCancel }) => {
             </div>
           </div>
 
+          <div>
+            <Label className="text-xs">SOP</Label>
+            <Textarea
+              value={sop}
+              onChange={e => setSop(e.target.value)}
+              placeholder="Optional — the plain-English SOP for what this workflow does. Auto-filled when created with AI."
+              className="mt-1 text-sm min-h-[70px]"
+            />
+          </div>
+
           {/* Sheet tabs */}
           <div>
             <div className="flex items-center gap-0 border-b border-slate-200 overflow-x-auto">
@@ -2012,6 +2025,8 @@ const WorkflowManagerModal = ({ agent, open, onClose, inline = false }) => {
   const [editTarget,  setEditTarget]  = useState(null);
   const [deletingId,  setDeletingId]  = useState(null);
   const [aiChatOpen,  setAiChatOpen]  = useState(false);
+  const [sopTarget,   setSopTarget]   = useState(null);
+  const [downloadingSkill, setDownloadingSkill] = useState(false);
 
   useEffect(() => {
     if (!agent) return;
@@ -2050,6 +2065,35 @@ const WorkflowManagerModal = ({ agent, open, onClose, inline = false }) => {
     setView('list');
     setEditTarget(null);
     fetchWorkflows();
+  };
+
+  const handleDownloadSkillMd = async () => {
+    setDownloadingSkill(true);
+    try {
+      const res = await api.get(`/api/agents/${agent.id}/workflows/skill-md`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/markdown' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${agent.name}-skill.md`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      let message = 'Failed to generate skill.md';
+      const data = err.response?.data;
+      if (data instanceof Blob) {
+        try {
+          const parsed = JSON.parse(await data.text());
+          message = parsed?.error || message;
+        } catch { /* not JSON, keep default message */ }
+      } else if (data?.error) {
+        message = data.error;
+      }
+      toast.error(message);
+    } finally {
+      setDownloadingSkill(false);
+    }
   };
 
   const listView = (
@@ -2120,6 +2164,23 @@ const WorkflowManagerModal = ({ agent, open, onClose, inline = false }) => {
                 </div>
                 <div className="flex gap-2 shrink-0">
                   <button
+                    onClick={() => setSopTarget(wf)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                  >
+                    <FileText className="h-3 w-3" /> View SOP
+                  </button>
+                  <button
+                    onClick={handleDownloadSkillMd}
+                    disabled={downloadingSkill}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                    title={`Download ${agent?.name}-skill.md`}
+                  >
+                    {downloadingSkill
+                      ? <Loader2 className="h-3 w-3 animate-spin" />
+                      : <Download className="h-3 w-3" />}
+                    skill.md
+                  </button>
+                  <button
                     onClick={() => { setEditTarget(wf); setView('build'); }}
                     className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
                   >
@@ -2174,7 +2235,26 @@ const WorkflowManagerModal = ({ agent, open, onClose, inline = false }) => {
     />
   );
 
-  if (inline) return (<>{innerContent}{aiChatModal}</>);
+  const sopModal = (
+    <Dialog open={!!sopTarget} onOpenChange={() => setSopTarget(null)}>
+      <DialogContent onClose={() => setSopTarget(null)} className="max-w-lg max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-indigo-600" />
+            SOP — {sopTarget?.name}
+          </DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-slate-700 whitespace-pre-wrap">
+          {sopTarget?.sop?.trim() || sopTarget?.description?.trim() || 'No SOP recorded for this workflow.'}
+        </p>
+        <div className="flex justify-end pt-2">
+          <Button variant="secondary" onClick={() => setSopTarget(null)}>Close</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+
+  if (inline) return (<>{innerContent}{aiChatModal}{sopModal}</>);
 
   return (
     <>
@@ -2190,6 +2270,7 @@ const WorkflowManagerModal = ({ agent, open, onClose, inline = false }) => {
         </DialogContent>
       </Dialog>
       {aiChatModal}
+      {sopModal}
     </>
   );
 };

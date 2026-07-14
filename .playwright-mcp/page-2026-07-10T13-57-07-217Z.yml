@@ -1,0 +1,97 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - region "Notifications alt+T"
+    - generic [ref=e123]:
+      - complementary [ref=e124]:
+        - generic [ref=e125]:
+          - generic [ref=e126]:
+            - heading "Colonel" [level=1] [ref=e128]
+            - paragraph [ref=e129]: Admin User
+            - paragraph [ref=e130]: admin
+          - navigation [ref=e131]:
+            - button "Dashboard" [ref=e132] [cursor=pointer]
+            - button "Brands" [ref=e138] [cursor=pointer]
+            - button "Agents" [ref=e143] [cursor=pointer]
+            - button "Users" [ref=e147] [cursor=pointer]
+            - button "Assignments" [ref=e153] [cursor=pointer]
+          - button "Logout" [ref=e158] [cursor=pointer]
+      - main [ref=e163]:
+        - generic [ref=e164]:
+          - generic [ref=e633]:
+            - button "Back to Agents & Workflows" [ref=e634] [cursor=pointer]
+            - generic [ref=e637]: /
+            - heading "Workflows — Sales-Shopify" [level=1] [ref=e643]
+          - generic [ref=e644]:
+            - generic [ref=e645]:
+              - paragraph [ref=e646]: 4 workflows
+              - generic [ref=e647]:
+                - button "Create with AI" [ref=e648] [cursor=pointer]
+                - button "Add Workflow" [ref=e652] [cursor=pointer]
+            - generic [ref=e654]:
+              - generic [ref=e655]:
+                - generic [ref=e656]:
+                  - generic [ref=e657]:
+                    - generic [ref=e658]: Shopify workflow 8 by claude
+                    - generic [ref=e659]: 5 sheets
+                    - generic [ref=e660]: 21 math
+                    - generic [ref=e661]: 4 excel
+                  - generic [ref=e662]:
+                    - generic [ref=e663]: MIS Working
+                    - generic [ref=e666]: Sales Working
+                    - generic [ref=e669]: Sales & Return Combined
+                    - generic [ref=e672]: SR Working
+                    - generic [ref=e675]: SR Pivot
+                - generic [ref=e678]:
+                  - button "Edit" [ref=e679] [cursor=pointer]
+                  - button "Delete" [ref=e682] [cursor=pointer]
+              - generic [ref=e686]:
+                - generic [ref=e687]:
+                  - generic [ref=e688]:
+                    - generic [ref=e689]: Urban Shopify
+                    - generic [ref=e690]: 1 sheet
+                    - generic [ref=e691]: 13 math
+                  - generic [ref=e692]: Working
+                - generic [ref=e696]:
+                  - button "Edit" [ref=e697] [cursor=pointer]
+                  - button "Delete" [ref=e700] [cursor=pointer]
+              - generic [ref=e704]:
+                - generic [ref=e705]:
+                  - generic [ref=e706]:
+                    - generic [ref=e707]: Zaydn Shopify
+                    - generic [ref=e708]: 2 sheets
+                    - generic [ref=e709]: 5 math
+                  - generic [ref=e710]:
+                    - generic [ref=e711]: Sales Working
+                    - generic [ref=e714]:
+                      - text: Pivot
+                      - generic [ref=e717]: ·G
+                - generic [ref=e718]:
+                  - button "Edit" [ref=e719] [cursor=pointer]
+                  - button "Delete" [ref=e722] [cursor=pointer]
+              - generic [ref=e726]:
+                - generic [ref=e727]:
+                  - generic [ref=e728]:
+                    - generic [ref=e729]: testing 1234
+                    - generic [ref=e730]: 3 sheets
+                    - generic [ref=e731]: 1 math
+                    - generic [ref=e732]: 1 excel
+                  - generic [ref=e733]:
+                    - generic [ref=e734]: working
+                    - generic [ref=e737]:
+                      - text: pivot
+                      - generic [ref=e740]: ·G
+                    - generic [ref=e741]: Merge 1
+                - generic [ref=e744]:
+                  - button "Edit" [ref=e745] [cursor=pointer]
+                  - button "Delete" [ref=e748] [cursor=pointer]
+          - generic [ref=e754]:
+            - heading "Create Workflow with AI — Sales-Shopify SOP chat" [level=2] [ref=e784]:
+              - text: Create Workflow with AI — Sales-Shopify
+              - generic [ref=e785]: SOP chat
+            - generic [ref=e760]:
+              - generic [ref=e786]: Describe the workflow's SOP — the steps, filters, formulas, and outputs it should produce. The AI may ask a clarifying question before drafting the workflow.
+              - generic [ref=e762]:
+                - textbox "Describe the SOP, or answer the clarifying question..." [ref=e788]
+                - button [disabled]
+            - button "Close" [ref=e775] [cursor=pointer]
+  - text: "-->"

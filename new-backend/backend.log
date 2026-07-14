@@ -1,0 +1,21 @@
+[dotenv@17.3.1] injecting env (17) from .env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+[dotenv@17.3.1] injecting env (0) from .env -- tip: ⚡️ secrets for agents: https://dotenvx.com/as2
+[MASTER DB] Connection established.
+[MASTER DB] Models synchronized.
+[SERVER] Colonel Backend running on port 8001
+[SERVER] Environment: development
+[OrderCycleProcessor] "Export-Tally GST Report": sheet="Export-Tally GST Report 3.0-flo", rows=66664
+[OrderCycleProcessor] "Sales Order Combined Report": sheet="Raw Combines", rows=235869
+[OrderCycleProcessor] "Payment Gateway: Razorpay": sheet="Sheet1 (2)", rows=79270
+[OrderCycleProcessor] "Payment Gateway: Snapmint": sheet="Combine", rows=31887
+[OrderCycleProcessor] "Payment Gateway: BharatX (AuroraX)": sheet="flo_mattress_SETTLEMENTS_579689", rows=143174
+[OrderCycleProcessor] "Logistics: Delhivery": sheet="Delhivery 24-25 Updated", rows=24911
+[OrderCycleProcessor] "Logistics: Xpressbees (Busybees)": sheet="FY 24-25", rows=1849
+[OrderCycleProcessor] "Logistics: Instakart (Ekart)": sheet="April 24 to Mar 25", rows=4467
+
+[OrderCycleProcessor] ── brand="Demo Brand", period="January-2026" ──
+[OrderCycleProcessor] Step 1: 66560 invoices from 66664 GST rows
+[OrderCycleProcessor] ── Done: 66560 rows, 84259 exceptions ──
+
+[DEBUG] getAllBrands hit { user: 'accountant@colonel.com', path: '/brands/my-brands' }
+[DEBUG] getAllBrands hit { user: 'accountant@colonel.com', path: '/brands/my-brands' }

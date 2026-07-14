@@ -1,4 +1,11 @@
+const multer = require('multer');
+const pdfParse = require('pdf-parse');
 const { validateWorkflowDraft } = require('../validators/workflowDraftValidator');
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+// Cap extracted text so a long SOP doesn't blow the model's context window
+const MAX_SOP_TEXT_LENGTH = 20000;
 
 // Genspark's LLM proxy — OpenAI-compatible chat completions API, proxying real Claude model IDs
 // (confirmed live: POST {GSK_BASE_URL}/chat/completions, Authorization: Bearer <GSK_API_KEY>).
@@ -153,10 +160,11 @@ const TOOLS = [
           summary: { type: 'string' },
           draft: {
             type: 'object', additionalProperties: false,
-            required: ['name', 'description', 'fileInputs', 'sheets'],
+            required: ['name', 'description', 'sop', 'fileInputs', 'sheets'],
             properties: {
               name: { type: 'string' },
               description: { type: 'string' },
+              sop: { type: 'string' },
               fileInputs: {
                 type: 'array',
                 items: {
@@ -197,6 +205,13 @@ MERGE sheet fields (type: "merge"):
 - mergeConfig.sources: 2+ entries, each {type: "raw" | "output", sheetName, columns}. type "raw" reads a sheet directly from an uploaded file (sheetName is a real sheet name in that file); type "output" reads an earlier sheet already defined in this workflow (sheetName matches that sheet's name exactly).
 
 Only ever use real column names and real sheet names given to you in this conversation's context — never invent one. If the SOP is ambiguous about which real column plays a given role, ask a clarifying question instead of guessing.
+
+draft.sop: write this yourself — do NOT copy the admin's raw chat messages. It is a clear, plain-English write-up, from YOUR understanding of the draft you just built, of exactly how this workflow processes data, so a non-technical admin can read it later and know what the workflow does without opening the builder. Structure it as:
+1. One sentence on the overall purpose (what business problem this solves).
+2. What file(s)/inputs it expects.
+3. A numbered, step-by-step walkthrough in sheet order — for each sheet, state in plain language what rows it starts from, what it filters out (if anything), and what each output column represents (paraphrase formulas in plain English, e.g. "Net Amount is Quantity multiplied by Rate" rather than "{Qty}*{Rate}"; describe lookups as "looks up the SKU's category from the master data" rather than naming lookupColumn/matchField).
+4. What the final output contains.
+Never reference internal field names like "fileInputId", "sourceType", "masterType", or JSON keys in this text — write it the way you'd explain the workflow to the business user who requested it.
 
 Every turn, call exactly one tool: "ask_clarifying_question" if you need more information before you can build an accurate draft, or "emit_workflow_draft" once you have enough information for a complete, runnable draft.`;
 
@@ -277,6 +292,32 @@ async function callGenspark({ systemPrompt, messages, forceEmitOnly }) {
   return data;
 }
 
+const parseSopPdf = [
+  upload.single('file'),
+  async (req, res, next) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+      if (req.file.mimetype !== 'application/pdf' && !req.file.originalname.toLowerCase().endsWith('.pdf')) {
+        return res.status(400).json({ error: 'File must be a PDF' });
+      }
+      const parsed = await pdfParse(req.file.buffer);
+      const text = (parsed.text || '').trim();
+      if (!text) return res.status(400).json({ error: 'Could not extract any text from this PDF' });
+      const truncated = text.length > MAX_SOP_TEXT_LENGTH;
+      res.json({
+        text: truncated ? text.slice(0, MAX_SOP_TEXT_LENGTH) : text,
+        truncated,
+        pages: parsed.numpages
+      });
+    } catch (error) {
+      if (error.message && /invalid pdf|bad xref|encrypted/i.test(error.message)) {
+        return res.status(400).json({ error: 'Could not read this PDF — it may be corrupted, image-only, or password-protected' });
+      }
+      next(error);
+    }
+  }
+];
+
 const aiChat = async (req, res, next) => {
   try {
     const { fileInputs = [], fileSheetsMap = {}, masterSchema = {}, messages = [] } = req.body;
@@ -334,4 +375,4 @@ const aiChat = async (req, res, next) => {
   }
 };
 
-module.exports = { aiChat };
+module.exports = { aiChat, parseSopPdf };

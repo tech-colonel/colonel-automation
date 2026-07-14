@@ -633,7 +633,7 @@ const getWorkflow = async (req, res, next) => {
 const createWorkflow = async (req, res, next) => {
   try {
     const { agentId } = req.params;
-    const { name, description, sample_columns, sheets, fileInputs } = req.body;
+    const { name, description, sop, sample_columns, sheets, fileInputs } = req.body;
 
     const agent = await Agent.findByPk(agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
@@ -644,6 +644,7 @@ const createWorkflow = async (req, res, next) => {
       agent_id:       agentId,
       name:           name.trim(),
       description:    description || '',
+      sop:            sop || '',
       sample_columns: sample_columns || [],
       sheets:         sheets || [],
       file_inputs:    fileInputs || [],
@@ -659,7 +660,7 @@ const createWorkflow = async (req, res, next) => {
 const updateWorkflow = async (req, res, next) => {
   try {
     const { workflowId } = req.params;
-    const { name, description, sample_columns, sheets, fileInputs } = req.body;
+    const { name, description, sop, sample_columns, sheets, fileInputs } = req.body;
 
     const workflow = await AgentWorkflow.findByPk(workflowId);
     if (!workflow) return res.status(404).json({ error: 'Workflow not found' });
@@ -667,6 +668,7 @@ const updateWorkflow = async (req, res, next) => {
     await workflow.update({
       ...(name           !== undefined && { name: name.trim() }),
       ...(description    !== undefined && { description }),
+      ...(sop            !== undefined && { sop }),
       ...(sample_columns !== undefined && { sample_columns }),
       ...(sheets         !== undefined && { sheets }),
       ...(fileInputs     !== undefined && { file_inputs: fileInputs })
@@ -776,6 +778,112 @@ const getMasterSchema = async (req, res, next) => {
   }
 };
 
+// ─── Agent skill.md export ─────────────────────────────────────────────────────
+
+function slugifyFilename(name) {
+  return String(name || 'agent').trim().replace(/[^a-zA-Z0-9-_]+/g, '-').replace(/^-+|-+$/g, '') || 'agent';
+}
+
+function describeFilter(f) {
+  return `${f.column} ${f.operator} ${f.value !== undefined ? JSON.stringify(f.value) : ''}`.trim();
+}
+
+function describeColumn(col) {
+  switch (col.type) {
+    case 'source':
+      return `**${col.label}** — source column \`${col.key}\``;
+    case 'computed':
+      return `**${col.label}** — computed: \`${col.formula}\``;
+    case 'excel':
+      return `**${col.label}** — excel formula: \`${col.formula}\``;
+    case 'master_lookup':
+      return `**${col.label}** — master_lookup: match ${col.masterType}.${col.matchField} on column "${col.lookupColumn}", return ${col.returnField}`;
+    case 'master_validate':
+      return `**${col.label}** — master_validate: match ${col.masterType}.${col.matchField} on column "${col.lookupColumn}" → "${col.matchLabel}" / "${col.noMatchLabel}"`;
+    default:
+      return `**${col.label}** — ${col.type}`;
+  }
+}
+
+function describeSheet(sheet, fileInputsById) {
+  const lines = [`### Sheet: ${sheet.name} (order ${sheet.order})`];
+  if (sheet.type === 'merge') {
+    const mc = sheet.mergeConfig || {};
+    lines.push(`- Type: merge (${mc.mergeType})`);
+    if (mc.commonJoinKey) lines.push(`- Join key: ${mc.commonJoinKey}`);
+    lines.push('- Sources:');
+    (mc.sources || []).forEach(src => {
+      lines.push(`  - ${src.type} sheet "${src.sheetName}" — columns: ${(src.columns || []).join(', ')}${src.joinKey ? `, joinKey: ${src.joinKey}` : ''}`);
+    });
+    return lines.join('\n');
+  }
+  const source = sheet.sourceType === 'raw'
+    ? `raw upload "${fileInputsById[sheet.fileInputId]?.label || sheet.fileInputId || 'default'}", sheet "${sheet.rawSheetName}"`
+    : `chained from sheet "${sheet.prevSheetName}"`;
+  lines.push(`- Source: ${source}`);
+  if ((sheet.filters || []).length) {
+    lines.push('- Filters:');
+    sheet.filters.forEach(f => lines.push(`  - ${describeFilter(f)}`));
+  }
+  lines.push('- Columns:');
+  (sheet.columns || []).slice().sort((a, b) => a.order - b.order).forEach(col => {
+    lines.push(`  - ${describeColumn(col)}`);
+  });
+  if (sheet.groupBy?.enabled) {
+    const aggs = Object.entries(sheet.groupBy.aggregations || {}).map(([c, m]) => `${c}: ${m}`).join(', ');
+    lines.push(`- Group by: ${(sheet.groupBy.columns || []).join(', ')} → ${aggs}`);
+  }
+  return lines.join('\n');
+}
+
+function buildWorkflowSkillMarkdown(agent, workflows) {
+  const lines = [
+    `# ${agent.name} — Workflow Skill Reference`,
+    '',
+    `This document describes every workflow configured for the "${agent.name}" agent — its SOP (what it's meant to do) and its exact technical structure (file inputs, sheets, filters, columns, formulas). Share this with an AI assistant to help build, review, or extend these workflows.`,
+    ''
+  ];
+
+  if (workflows.length === 0) {
+    lines.push('_No workflows are configured for this agent yet._');
+    return lines.join('\n');
+  }
+
+  workflows.forEach((wf, i) => {
+    const fileInputsById = {};
+    (wf.file_inputs || []).forEach(fi => { fileInputsById[fi.id] = fi; });
+
+    lines.push(`## ${i + 1}. ${wf.name}`, '', '**SOP:**', '');
+    lines.push(wf.sop?.trim() || wf.description?.trim() || '_No SOP recorded for this workflow._', '');
+    if (wf.description) lines.push(`**Description:** ${wf.description}`, '');
+    lines.push('**File inputs:**');
+    (wf.file_inputs || []).forEach(fi => lines.push(`- ${fi.label} (id: \`${fi.id}\`)`));
+    lines.push('', '**Sheets (in processing order):**', '');
+    (wf.sheets || []).slice().sort((a, b) => a.order - b.order).forEach(sheet => {
+      lines.push(describeSheet(sheet, fileInputsById), '');
+    });
+    lines.push('---', '');
+  });
+
+  return lines.join('\n');
+}
+
+const getAgentSkillMarkdown = async (req, res, next) => {
+  try {
+    const { agentId } = req.params;
+    const agent = await Agent.findByPk(agentId);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    const workflows = await AgentWorkflow.findAll({ where: { agent_id: agentId }, order: [['createdAt', 'ASC']] });
+    const markdown = buildWorkflowSkillMarkdown(agent, workflows.map(w => w.toJSON()));
+    const filename = `${slugifyFilename(agent.name)}-skill.md`;
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(markdown);
+  } catch (error) {
+    next(error);
+  }
+};
+
 const downloadWorkflowOutput = async (req, res, next) => {
   try {
     const { filename } = req.params;
@@ -793,6 +901,7 @@ const downloadWorkflowOutput = async (req, res, next) => {
 module.exports = {
   getWorkflows,
   getWorkflow,
+  getAgentSkillMarkdown,
   createWorkflow,
   updateWorkflow,
   deleteWorkflow,

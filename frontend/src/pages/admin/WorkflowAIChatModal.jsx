@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
 import { Badge } from '../../components/ui/badge';
-import { Sparkles, Send, Loader2, Plus, X, Upload, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Sparkles, Send, Loader2, Plus, X, Upload, CheckCircle2, AlertTriangle, Paperclip, FileText } from 'lucide-react';
 import api from '../../lib/api';
 import { toast } from 'sonner';
 
@@ -23,6 +23,11 @@ const WorkflowAIChatModal = ({ agent, open, onClose, onHandoff }) => {
   const [pendingDraft, setPendingDraft] = useState(null);
   const scrollRef = useRef(null);
 
+  const [sopFile, setSopFile] = useState(null);
+  const [sopText, setSopText] = useState('');
+  const [parsingSop, setParsingSop] = useState(false);
+  const sopInputRef = useRef(null);
+
   useEffect(() => {
     if (!open) {
       setStep('upload');
@@ -32,6 +37,8 @@ const WorkflowAIChatModal = ({ agent, open, onClose, onHandoff }) => {
       setMessages([]);
       setInput('');
       setPendingDraft(null);
+      setSopFile(null);
+      setSopText('');
     }
   }, [open]);
 
@@ -79,18 +86,55 @@ const WorkflowAIChatModal = ({ agent, open, onClose, onHandoff }) => {
     }
   };
 
+  const handleSopUpload = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      toast.error('Please upload a PDF file');
+      return;
+    }
+    setParsingSop(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await api.post('/api/workflows/ai/parse-sop-pdf', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setSopFile(file);
+      setSopText(res.data.text || '');
+      toast.success(`Attached ${file.name}${res.data.truncated ? ' (truncated to fit)' : ''}`);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to read PDF');
+    } finally {
+      setParsingSop(false);
+    }
+  };
+
+  const removeSop = () => {
+    setSopFile(null);
+    setSopText('');
+  };
+
   const handleSend = async () => {
     const text = input.trim();
-    if (!text || loading) return;
-    const nextMessages = [...messages, { role: 'user', content: text }];
+    if ((!text && !sopFile) || loading) return;
+    const displayContent = text || `Attached SOP: ${sopFile.name}`;
+    const apiContent = sopText
+      ? `SOP document "${sopFile.name}" (extracted text):\n"""\n${sopText}\n"""\n\n${text}`
+      : text;
+    const userMessage = { role: 'user', content: displayContent, apiContent, attachment: sopFile?.name };
+    const nextMessages = [...messages, userMessage];
     setMessages(nextMessages);
     setInput('');
+    removeSop();
     setLoading(true);
     try {
+      const apiMessages = nextMessages.map(m => ({ role: m.role, content: m.apiContent || m.content }));
       const res = await api.post('/api/workflows/ai/chat', {
         fileInputs,
         fileSheetsMap: perFileSheets,
-        messages: nextMessages
+        messages: apiMessages
       });
       const data = res.data?.data;
       if (!data) throw new Error('Empty response');
@@ -125,6 +169,7 @@ const WorkflowAIChatModal = ({ agent, open, onClose, onHandoff }) => {
     const draftObj = {
       name: pendingDraft.name,
       description: pendingDraft.description,
+      sop: pendingDraft.sop || '',
       sample_columns: firstSheets[0]?.columns || [],
       fileInputs,
       sheets: pendingDraft.sheets
@@ -189,6 +234,7 @@ const WorkflowAIChatModal = ({ agent, open, onClose, onHandoff }) => {
         {messages.length === 0 && (
           <div className="text-sm text-slate-400 py-8 text-center">
             Describe the workflow's SOP — the steps, filters, formulas, and outputs it should produce.
+            You can also attach a PDF of the SOP using the paperclip button below.
             The AI may ask a clarifying question before drafting the workflow.
           </div>
         )}
@@ -204,6 +250,11 @@ const WorkflowAIChatModal = ({ agent, open, onClose, onHandoff }) => {
               }`}
             >
               {m.error && <AlertTriangle className="h-3.5 w-3.5 inline mr-1 -mt-0.5" />}
+              {m.attachment && (
+                <div className={`flex items-center gap-1 text-xs mb-1 ${m.role === 'user' ? 'text-indigo-100' : 'text-slate-500'}`}>
+                  <FileText className="h-3 w-3" /> {m.attachment}
+                </div>
+              )}
               {m.content}
               {m.draft && i === messages.length - 1 && pendingDraft && (
                 <div className="mt-2">
@@ -223,18 +274,45 @@ const WorkflowAIChatModal = ({ agent, open, onClose, onHandoff }) => {
           </div>
         )}
       </div>
-      <div className="flex items-end gap-2 pt-2 border-t border-slate-100">
-        <Textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Describe the SOP, or answer the clarifying question..."
-          className="min-h-[44px] max-h-40 text-sm"
-          disabled={loading}
-        />
-        <Button onClick={handleSend} disabled={loading || !input.trim()} className="h-9 shrink-0">
-          <Send className="h-4 w-4" />
-        </Button>
+      <div className="pt-2 border-t border-slate-100 space-y-2">
+        {sopFile && (
+          <div className="flex items-center gap-2 text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md px-2 py-1 w-fit">
+            <FileText className="h-3.5 w-3.5" />
+            {sopFile.name}
+            <button onClick={removeSop} className="text-indigo-400 hover:text-indigo-700">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+        <div className="flex items-end gap-2">
+          <input
+            ref={sopInputRef}
+            type="file"
+            accept=".pdf,application/pdf"
+            onChange={handleSopUpload}
+            className="hidden"
+          />
+          <Button
+            variant="secondary"
+            onClick={() => sopInputRef.current?.click()}
+            disabled={loading || parsingSop}
+            className="h-9 shrink-0"
+            title="Attach SOP PDF"
+          >
+            {parsingSop ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+          </Button>
+          <Textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Describe the SOP, attach a PDF, or answer the clarifying question..."
+            className="min-h-[44px] max-h-40 text-sm"
+            disabled={loading}
+          />
+          <Button onClick={handleSend} disabled={loading || (!input.trim() && !sopFile)} className="h-9 shrink-0">
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
     </div>
   );

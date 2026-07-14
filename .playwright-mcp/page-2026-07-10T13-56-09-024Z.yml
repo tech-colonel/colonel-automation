@@ -1,0 +1,241 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - region "Notifications alt+T"
+    - generic [ref=e123]:
+      - complementary [ref=e124]:
+        - generic [ref=e125]:
+          - generic [ref=e126]:
+            - heading "Colonel" [level=1] [ref=e128]
+            - paragraph [ref=e129]: Admin User
+            - paragraph [ref=e130]: admin
+          - navigation [ref=e131]:
+            - button "Dashboard" [ref=e132] [cursor=pointer]
+            - button "Brands" [ref=e138] [cursor=pointer]
+            - button "Agents" [ref=e143] [cursor=pointer]
+            - button "Users" [ref=e147] [cursor=pointer]
+            - button "Assignments" [ref=e153] [cursor=pointer]
+          - button "Logout" [ref=e158] [cursor=pointer]
+      - main [ref=e163]:
+        - generic [ref=e164]:
+          - generic [ref=e165]:
+            - generic [ref=e166]:
+              - generic [ref=e167]:
+                - heading "Agents" [level=2] [ref=e168]
+                - paragraph [ref=e172]: Processing agents and their configuration
+              - button "New Agent" [ref=e173] [cursor=pointer]
+            - generic [ref=e175]:
+              - generic [ref=e176]:
+                - generic [ref=e177]:
+                  - generic [ref=e178]:
+                    - generic [ref=e184]:
+                      - paragraph [ref=e185]: Sales-Limeroad
+                      - paragraph [ref=e186]: 26 Jun 2026
+                    - generic [ref=e187]: Active
+                  - paragraph [ref=e188]: LimeRoad Sales Agent - Process LimeRoad Payment Sale Return Reports with B2C and HSN pivot generation
+                  - generic [ref=e189]: 0 workflow s
+                - generic [ref=e194]:
+                  - button "Manage Data" [ref=e195] [cursor=pointer]
+                  - button [ref=e200] [cursor=pointer]
+              - generic [ref=e204]:
+                - generic [ref=e205]:
+                  - generic [ref=e206]:
+                    - generic [ref=e212]:
+                      - paragraph [ref=e213]: Sales-Shopify
+                      - paragraph [ref=e214]: 25 Jun 2026
+                    - generic [ref=e215]: Active
+                  - paragraph [ref=e216]: Shopify Sales Agent - Processes Shopify sales reports with GST and ledger mapping
+                  - generic [ref=e217]: 4 workflow s
+                - generic [ref=e222]:
+                  - button "Manage Data" [ref=e223] [cursor=pointer]
+                  - button [ref=e228] [cursor=pointer]
+              - generic [ref=e232]:
+                - generic [ref=e233]:
+                  - generic [ref=e234]:
+                    - generic [ref=e240]:
+                      - paragraph [ref=e241]: Sales-cread
+                      - paragraph [ref=e242]: 23 Jun 2026
+                    - generic [ref=e243]: Active
+                  - paragraph [ref=e244]: Cread Sales Agent - Process Cread sales reports with SKU and ledger mapping
+                  - generic [ref=e245]: 0 workflow s
+                - generic [ref=e250]:
+                  - button "Manage Data" [ref=e251] [cursor=pointer]
+                  - button [ref=e256] [cursor=pointer]
+              - generic [ref=e260]:
+                - generic [ref=e261]:
+                  - generic [ref=e262]:
+                    - generic [ref=e268]:
+                      - paragraph [ref=e269]: Invoice-Processing
+                      - paragraph [ref=e270]: 22 Jun 2026
+                    - generic [ref=e271]: Active
+                  - paragraph [ref=e272]: Invoice Processing Agent for extracting structured invoice data
+                  - generic [ref=e273]: 0 workflow s
+                - generic [ref=e278]:
+                  - button "Manage Data" [ref=e279] [cursor=pointer]
+                  - button [ref=e284] [cursor=pointer]
+              - generic [ref=e288]:
+                - generic [ref=e289]:
+                  - generic [ref=e290]:
+                    - generic [ref=e296]:
+                      - paragraph [ref=e297]: Shopify-Order-Cycle
+                      - paragraph [ref=e298]: 22 Jun 2026
+                    - generic [ref=e299]: Active
+                  - paragraph [ref=e300]: Tracks Shopify order lifecycle including dispatch, returns, and payment settlements across partners
+                  - generic [ref=e301]: 0 workflow s
+                - generic [ref=e306]:
+                  - button "Manage Data" [ref=e307] [cursor=pointer]
+                  - button [ref=e312] [cursor=pointer]
+              - generic [ref=e316]:
+                - generic [ref=e317]:
+                  - generic [ref=e318]:
+                    - generic [ref=e324]:
+                      - paragraph [ref=e325]: Sales-Nykaa
+                      - paragraph [ref=e326]: 19 Jun 2026
+                    - generic [ref=e327]: Active
+                  - paragraph [ref=e328]: Nykaa Sales Agent - Handles sales and GST data
+                  - generic [ref=e329]: 0 workflow s
+                - generic [ref=e334]:
+                  - button "Manage Data" [ref=e335] [cursor=pointer]
+                  - button [ref=e340] [cursor=pointer]
+              - generic [ref=e344]:
+                - generic [ref=e345]:
+                  - generic [ref=e346]:
+                    - generic [ref=e352]:
+                      - paragraph [ref=e353]: Settlement-Amazon
+                      - paragraph [ref=e354]: 19 Jun 2026
+                    - generic [ref=e355]: Active
+                  - paragraph [ref=e356]: Process Amazon settlement reports and generate MIS reporting
+                  - generic [ref=e357]: 0 workflow s
+                - generic [ref=e362]:
+                  - button "Manage Data" [ref=e363] [cursor=pointer]
+                  - button [ref=e368] [cursor=pointer]
+              - generic [ref=e372]:
+                - generic [ref=e373]:
+                  - generic [ref=e374]:
+                    - generic [ref=e380]:
+                      - paragraph [ref=e381]: Sales-Flipkart
+                      - paragraph [ref=e382]: 19 Jun 2026
+                    - generic [ref=e383]: Active
+                  - paragraph [ref=e384]: Process Flipkart sales data and generate working files with SKU and Ledger mapping
+                  - generic [ref=e385]: 0 workflow s
+                - generic [ref=e390]:
+                  - button "Manage Data" [ref=e391] [cursor=pointer]
+                  - button [ref=e396] [cursor=pointer]
+              - generic [ref=e400]:
+                - generic [ref=e401]:
+                  - generic [ref=e402]:
+                    - generic [ref=e408]:
+                      - paragraph [ref=e409]: Total-Sales-Analyzer
+                      - paragraph [ref=e410]: 19 Jun 2026
+                    - generic [ref=e411]: Active
+                  - paragraph [ref=e412]: Process all sales data to analyze total sales without SKU and Ledger mappings
+                  - generic [ref=e413]: 0 workflow s
+                - generic [ref=e418]:
+                  - button "Manage Data" [ref=e419] [cursor=pointer]
+                  - button [ref=e424] [cursor=pointer]
+              - generic [ref=e428]:
+                - generic [ref=e429]:
+                  - generic [ref=e430]:
+                    - generic [ref=e436]:
+                      - paragraph [ref=e437]: Sales-Amazon
+                      - paragraph [ref=e438]: 19 Jun 2026
+                    - generic [ref=e439]: Active
+                  - paragraph [ref=e440]: Process Amazon sales data and generate working files with SKU and Ledger mapping
+                  - generic [ref=e441]: 0 workflow s
+                - generic [ref=e446]:
+                  - button "Manage Data" [ref=e447] [cursor=pointer]
+                  - button [ref=e452] [cursor=pointer]
+          - generic [ref=e456]:
+            - generic [ref=e457]:
+              - generic [ref=e458]:
+                - heading "Workflows" [level=2] [ref=e459]
+                - paragraph [ref=e464]: All workflows — create, edit, and assign to brands
+              - button "Create Workflow" [active] [ref=e466] [cursor=pointer]
+            - generic [ref=e468]:
+              - generic [ref=e469]:
+                - generic [ref=e470]:
+                  - generic [ref=e478]:
+                    - paragraph [ref=e479]: Shopify workflow 8 by claude
+                    - paragraph [ref=e480]: Sales-Shopify
+                  - generic [ref=e481]:
+                    - generic [ref=e482]: 5 sheet s
+                    - generic [ref=e485]: 1 merge
+                    - generic [ref=e490]: ✦ 21 math
+                    - generic [ref=e491]: Σ 4 excel
+                  - generic [ref=e492]:
+                    - generic [ref=e493]: MIS Working
+                    - generic [ref=e494]: Sales Working
+                    - generic [ref=e495]: Sales & Return Combined
+                    - generic [ref=e500]: SR Working
+                    - generic [ref=e501]: + 1 more
+                - generic [ref=e502]:
+                  - button "Edit" [ref=e503] [cursor=pointer]
+                  - button "Assign" [ref=e504] [cursor=pointer]
+                  - button [ref=e508] [cursor=pointer]
+              - generic [ref=e512]:
+                - generic [ref=e513]:
+                  - generic [ref=e521]:
+                    - paragraph [ref=e522]: Urban Shopify
+                    - paragraph [ref=e523]: Sales-Shopify
+                  - generic [ref=e524]:
+                    - generic [ref=e525]: 1 sheet
+                    - generic [ref=e528]: ✦ 13 math
+                  - generic [ref=e529]: Working
+                - generic [ref=e531]:
+                  - button "Edit" [ref=e532] [cursor=pointer]
+                  - button "Assign" [ref=e533] [cursor=pointer]
+                  - button [ref=e537] [cursor=pointer]
+              - generic [ref=e541]:
+                - generic [ref=e542]:
+                  - generic [ref=e550]:
+                    - paragraph [ref=e551]: Zaydn Shopify
+                    - paragraph [ref=e552]: Sales-Shopify
+                  - generic [ref=e553]:
+                    - generic [ref=e554]: 2 sheet s
+                    - generic [ref=e557]: ✦ 5 math
+                  - generic [ref=e558]:
+                    - generic [ref=e559]: Sales Working
+                    - generic [ref=e560]: Pivot
+                - generic [ref=e561]:
+                  - button "Edit" [ref=e562] [cursor=pointer]
+                  - button "Assign" [ref=e563] [cursor=pointer]
+                  - button [ref=e567] [cursor=pointer]
+              - generic [ref=e571]:
+                - generic [ref=e572]:
+                  - generic [ref=e580]:
+                    - paragraph [ref=e581]: testing 1234
+                    - paragraph [ref=e582]: Sales-Shopify
+                  - generic [ref=e583]:
+                    - generic [ref=e584]: 3 sheet s
+                    - generic [ref=e587]: 1 merge
+                    - generic [ref=e592]: ✦ 1 math
+                    - generic [ref=e593]: Σ 1 excel
+                  - generic [ref=e594]:
+                    - generic [ref=e595]: working
+                    - generic [ref=e596]: pivot
+                    - generic [ref=e597]: Merge 1
+                - generic [ref=e602]:
+                  - button "Edit" [ref=e603] [cursor=pointer]
+                  - button "Assign" [ref=e604] [cursor=pointer]
+                  - button [ref=e608] [cursor=pointer]
+        - generic [ref=e614]:
+          - heading "Create Workflow" [level=2] [ref=e616]
+          - generic [ref=e621]:
+            - paragraph [ref=e622]: Select which agent this workflow belongs to.
+            - generic [ref=e623]:
+              - text: Agent
+              - combobox [ref=e624]:
+                - option "Sales-Limeroad" [selected]
+                - option "Sales-Shopify"
+                - option "Sales-cread"
+                - option "Invoice-Processing"
+                - option "Shopify-Order-Cycle"
+                - option "Sales-Nykaa"
+                - option "Settlement-Amazon"
+                - option "Sales-Flipkart"
+                - option "Total-Sales-Analyzer"
+                - option "Sales-Amazon"
+            - generic [ref=e625]:
+              - button "Cancel" [ref=e626] [cursor=pointer]
+              - button "Continue →" [ref=e627] [cursor=pointer]
+          - button "Close" [ref=e628] [cursor=pointer]
+  - text: "-->"

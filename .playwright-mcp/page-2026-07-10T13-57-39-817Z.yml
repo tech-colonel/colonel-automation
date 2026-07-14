@@ -1,0 +1,99 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - region "Notifications alt+T"
+    - generic [ref=e123]:
+      - complementary [ref=e124]:
+        - generic [ref=e125]:
+          - generic [ref=e126]:
+            - heading "Colonel" [level=1] [ref=e128]
+            - paragraph [ref=e129]: Admin User
+            - paragraph [ref=e130]: admin
+          - navigation [ref=e131]:
+            - button "Dashboard" [ref=e132] [cursor=pointer]
+            - button "Brands" [ref=e138] [cursor=pointer]
+            - button "Agents" [ref=e143] [cursor=pointer]
+            - button "Users" [ref=e147] [cursor=pointer]
+            - button "Assignments" [ref=e153] [cursor=pointer]
+          - button "Logout" [ref=e158] [cursor=pointer]
+      - main [ref=e163]:
+        - generic [ref=e164]:
+          - generic [ref=e633]:
+            - button "Back to Agents & Workflows" [ref=e634] [cursor=pointer]
+            - generic [ref=e637]: /
+            - heading "Workflows — Sales-Shopify" [level=1] [ref=e643]
+          - generic [ref=e644]:
+            - generic [ref=e645]:
+              - paragraph [ref=e646]: 4 workflows
+              - generic [ref=e647]:
+                - button "Create with AI" [ref=e648] [cursor=pointer]
+                - button "Add Workflow" [ref=e652] [cursor=pointer]
+            - generic [ref=e654]:
+              - generic [ref=e655]:
+                - generic [ref=e656]:
+                  - generic [ref=e657]:
+                    - generic [ref=e658]: Shopify workflow 8 by claude
+                    - generic [ref=e659]: 5 sheets
+                    - generic [ref=e660]: 21 math
+                    - generic [ref=e661]: 4 excel
+                  - generic [ref=e662]:
+                    - generic [ref=e663]: MIS Working
+                    - generic [ref=e666]: Sales Working
+                    - generic [ref=e669]: Sales & Return Combined
+                    - generic [ref=e672]: SR Working
+                    - generic [ref=e675]: SR Pivot
+                - generic [ref=e678]:
+                  - button "Edit" [ref=e679] [cursor=pointer]
+                  - button "Delete" [ref=e682] [cursor=pointer]
+              - generic [ref=e686]:
+                - generic [ref=e687]:
+                  - generic [ref=e688]:
+                    - generic [ref=e689]: Urban Shopify
+                    - generic [ref=e690]: 1 sheet
+                    - generic [ref=e691]: 13 math
+                  - generic [ref=e692]: Working
+                - generic [ref=e696]:
+                  - button "Edit" [ref=e697] [cursor=pointer]
+                  - button "Delete" [ref=e700] [cursor=pointer]
+              - generic [ref=e704]:
+                - generic [ref=e705]:
+                  - generic [ref=e706]:
+                    - generic [ref=e707]: Zaydn Shopify
+                    - generic [ref=e708]: 2 sheets
+                    - generic [ref=e709]: 5 math
+                  - generic [ref=e710]:
+                    - generic [ref=e711]: Sales Working
+                    - generic [ref=e714]:
+                      - text: Pivot
+                      - generic [ref=e717]: ·G
+                - generic [ref=e718]:
+                  - button "Edit" [ref=e719] [cursor=pointer]
+                  - button "Delete" [ref=e722] [cursor=pointer]
+              - generic [ref=e726]:
+                - generic [ref=e727]:
+                  - generic [ref=e728]:
+                    - generic [ref=e729]: testing 1234
+                    - generic [ref=e730]: 3 sheets
+                    - generic [ref=e731]: 1 math
+                    - generic [ref=e732]: 1 excel
+                  - generic [ref=e733]:
+                    - generic [ref=e734]: working
+                    - generic [ref=e737]:
+                      - text: pivot
+                      - generic [ref=e740]: ·G
+                    - generic [ref=e741]: Merge 1
+                - generic [ref=e744]:
+                  - button "Edit" [ref=e745] [cursor=pointer]
+                  - button "Delete" [ref=e748] [cursor=pointer]
+          - generic [ref=e754]:
+            - heading "Create Workflow with AI — Sales-Shopify SOP chat" [level=2] [ref=e784]:
+              - text: Create Workflow with AI — Sales-Shopify
+              - generic [ref=e785]: SOP chat
+            - generic [ref=e760]:
+              - generic [ref=e786]:
+                - generic [ref=e793]: "Sheet 1 — \"Sales Working\" (source: raw sheet MAY) Filters (exclude rows where): FINAL STATUS contains \"RTO\" FINAL STATUS contains \"pickup pending\" FINAL STATUS contains \"CANCELLED\" Passthrough columns (in this order): DATE, ORDER ID, Prince sheet status, FINAL STATUS, Payment Method, QTY, Subtotal, Shipping, Taxes, Total, Discount Code, Discount Amount, Lineitem name, Lineitem price, Lineitem compare at price, SKU, Payment Reference, Refunded Amount, Vendor, Outstanding Balance, Id, Tags, Source, Lineitem discount, Tax 1 Name, Tax 1 Value, Tax 2 Name, Tax 2 Value, Tax 3 Name, Tax 3 Value, Tax 4 Name, Tax 4 Value, Tax 5 Name, Tax 5 Value, Payment ID, Payment References, CUSTOMER NAME, Email, PHONE, Shipping Province Name. Computed columns: GST Rate = IF({Total}/{QTY} < 2500, 5, 18) Taxable = {Total} / ({GST Rate} + 100) * 100 IGST = IF({Shipping Province Name} == \"Delhi\", 0, ({Taxable}*{GST Rate})/100) CGST = IF({Shipping Province Name} == \"Delhi\", ({Taxable}*{GST Rate})/200, 0) SGST = IF(LOWER({Shipping Province Name}) = \"delhi\", ({Taxable}*{GST Rate})/200, 0) Master lookups: FG — SKU master: match Sales portal SKU, return Tally new SKU, looked up by this sheet's SKU column. Debtors in tally — Ledger master: match States, return Ledger, looked up by Shipping Province Name. Invoice No. — Ledger master: match States, return Invoice No., looked up by Shipping Province Name. Sheet 2 — \"Pivot\" (source: previous sheet \"Sales Working\") Columns: DATE, Invoice No., Debtors in tally, FG, Email, QTY, Taxable, IGST, CGST, SGST, Total Group by: DATE, Debtors in tally, Invoice No., FG, Email — with QTY, Taxable, IGST, CGST, SGST, Total summed per group."
+                - generic [ref=e795]: Thinking...
+              - generic [ref=e762]:
+                - textbox "Describe the SOP, or answer the clarifying question..." [disabled] [ref=e788]
+                - button [disabled]
+            - button "Close" [ref=e775] [cursor=pointer]
+  - text: "-->"

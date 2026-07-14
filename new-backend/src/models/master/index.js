@@ -146,6 +146,10 @@ const AgentWorkflow = masterSequelize.define('AgentWorkflow', {
   description: {
     type: DataTypes.TEXT
   },
+  sop: {
+    type: DataTypes.TEXT,
+    defaultValue: ''
+  },
   sample_columns: {
     type: DataTypes.JSONB,
     defaultValue: []
